@@ -30,14 +30,14 @@ APP_BUILD_SCRIPT := $(call my-dir)/Android.mk
 APP_PROJECT_PATH := $(call my-dir)
 
 APP_CPPFLAGS += -fno-exceptions
-APP_CPPFLAGS += -fno-rtti
+APP_CPPFLAGS += -frtti
 APP_CPPFLAGS += -isystem/usr/include/eigen3
 APP_CPPFLAGS += -std=c++11 -DMAX_LOG_LEVEL=-1 
 APP_CPPFLAGS += -O3 -funsafe-math-optimizations -ffast-math
 
 APP_OPTIM := release
 APP_STL := gnustl_static
-APP_ABI := armeabi-v7a x86
+APP_ABI := armeabi-v7a
 
 
 NDK_TOOLCHAIN_VERSION=4.9
