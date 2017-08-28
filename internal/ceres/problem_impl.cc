@@ -205,10 +205,17 @@ void ProblemImpl::DeleteBlock(ParameterBlock* parameter_block) {
   delete parameter_block;
 }
 
+void ProblemImpl::enableCopyStateEvalution(Problem::EvaluateCallback* cb) {
+	evaluateCallback_ = cb;
+	program_->evalCB_ = evaluateCallback_;
+}
+
+
 ProblemImpl::ProblemImpl() : program_(new internal::Program) {}
 ProblemImpl::ProblemImpl(const Problem::Options& options)
     : options_(options),
-      program_(new internal::Program) {}
+      program_(new internal::Program),
+	  evaluateCallback_(nullptr){}
 
 ProblemImpl::~ProblemImpl() {
   // Collect the unique cost/loss functions and delete the residuals.

@@ -75,9 +75,9 @@
 LOCAL_PATH := $(call my-dir)
 
 # Ceres requires at least NDK version r9d to compile.
-ifneq ($(shell $(LOCAL_PATH)/assert_ndk_version.sh "r9d" $(NDK_ROOT)), true)
-  $(error Ceres requires NDK version r9d or greater)
-endif
+#ifneq ($(shell $(LOCAL_PATH)/assert_ndk_version.sh "r9d" $(NDK_ROOT)), true)
+#  $(error Ceres requires NDK version r9d or greater)
+#endif
 
 EIGEN_PATH := $(EIGEN_PATH)
 CERES_INCLUDE_PATHS := $(CERES_EXTRA_INCLUDES)
@@ -114,6 +114,9 @@ LOCAL_CFLAGS := $(CERES_EXTRA_DEFINES) \
 ifeq (,$(findstring CERES_HAVE_PTHREAD, $(LOCAL_CFLAGS)))
   LOCAL_CFLAGS += -DCERES_NO_THREADS
 endif
+
+LOCAL_ARM_NEON := true
+
 
 LOCAL_SRC_FILES := $(CERES_SRC_PATH)/array_utils.cc \
                    $(CERES_SRC_PATH)/blas.cc \
@@ -249,6 +252,10 @@ LOCAL_SRC_FILES := $(CERES_SRC_PATH)/array_utils.cc \
 ifndef CERES_GLOG_DIR
 LOCAL_SRC_FILES += $(CERES_SRC_PATH)/miniglog/glog/logging.cc
 endif
-
+#LOCAL_LDLIBS := -L$(SYSROOT)/usr/lib -llog
 LOCAL_MODULE := ceres
+LOCAL_ARM_MODE := arm
+
+
+
 include $(BUILD_STATIC_LIBRARY)

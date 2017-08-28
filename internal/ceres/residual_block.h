@@ -42,6 +42,7 @@
 #include "ceres/internal/scoped_ptr.h"
 #include "ceres/stringprintf.h"
 #include "ceres/types.h"
+#include "ceres/problem.h"
 
 namespace ceres {
 
@@ -100,7 +101,9 @@ class ResidualBlock {
                 double* cost,
                 double* residuals,
                 double** jacobians,
-                double* scratch) const;
+                double* scratch,
+				Problem::EvaluateCallback* cb=nullptr,
+				Problem::EvaluateCallbackInfo* cbinfo=nullptr) const;
 
 
   const CostFunction* cost_function() const { return cost_function_; }

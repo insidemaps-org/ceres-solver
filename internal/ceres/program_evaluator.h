@@ -96,6 +96,8 @@
 #include "ceres/program.h"
 #include "ceres/residual_block.h"
 #include "ceres/small_blas.h"
+#include "ceres/problem.h"
+
 
 namespace ceres {
 namespace internal {
@@ -174,7 +176,63 @@ class ProgramEvaluator : public Evaluator {
     // but with an empty body, and so will finish quickly.
     bool abort = false;
     int num_residual_blocks = program_->NumResidualBlocks();
-#pragma omp parallel for num_threads(options_.num_threads)
+
+    int num_threads_ = options_.num_threads;
+
+
+    ceres::Problem::EvaluateCallbackInfo cbInfo;
+    cbInfo.needJacobian = jacobian != NULL || gradient != NULL;
+    cbInfo.needResidual = true;
+
+    if (program_->evalCB_) {
+    	num_threads_ = 1;
+
+        cbInfo.event = ceres::Problem::COPY_STATE_BEGIN;
+    	program_->evalCB_->event(cbInfo);
+        ceres::Problem::EvaluateCallbackInfo cbInfoState = cbInfo;
+    	cbInfoState.event = ceres::Problem::COPY_STATE_PARAMETERS;
+    	for (int i = 0; i < num_residual_blocks; ++i) {
+    		const ResidualBlock* residual_block = program_->residual_blocks()[i];
+
+    		double temp = 0xCAFEBABE;
+    		double* temp_ptr = &temp;
+    	      double* block_residuals = NULL;
+    	      if (residuals != NULL) {
+    	        block_residuals = &temp;
+    	      } else if (gradient != NULL) {
+    	        block_residuals = &temp;
+    	      }
+
+    	      // Prepare block jacobians if requested.
+    	      double** block_jacobians = NULL;
+    	      if (jacobian != NULL || gradient != NULL) {
+    	        block_jacobians = &temp_ptr;
+    	      }
+
+    		double block_cost;
+			if (!residual_block->Evaluate(
+				  false,
+				  &block_cost,
+				  block_residuals,
+				  block_jacobians,
+				  nullptr,
+				  program_->evalCB_,
+				  &cbInfoState))
+			{
+			  LOG(ERROR)  << "Return false from eval during copy state is not allowed.";
+			}
+    	}
+    	cbInfo.event = ceres::Problem::COPY_STATE_END;
+    	program_->evalCB_->event(cbInfo);
+
+    	cbInfo.event = ceres::Problem::STATE_EVALUATE;
+    	program_->evalCB_->event(cbInfo);
+
+    	cbInfo.event = ceres::Problem::FETCH_RESIDUALS_BEGIN;
+    	program_->evalCB_->event(cbInfo);
+    }
+
+#pragma omp parallel for num_threads(num_threads_)
     for (int i = 0; i < num_residual_blocks; ++i) {
 // Disable the loop instead of breaking, as required by OpenMP.
 #pragma omp flush(abort)
@@ -280,6 +338,10 @@ class ProgramEvaluator : public Evaluator {
         JacobianFinalizer f;
         f(jacobian, num_parameters);
       }
+    }
+    if (program_->evalCB_) {
+      cbInfo.event = ceres::Problem::FETCH_RESIDUALS_END;
+	  program_->evalCB_->event(cbInfo);
     }
     return !abort;
   }

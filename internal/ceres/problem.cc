@@ -274,4 +274,10 @@ void Problem::GetResidualBlocksForParameterBlock(
                                                     residual_blocks);
 }
 
+void Problem::enableCopyStateEvalution(EvaluateCallback* cb) {
+	problem_impl_->enableCopyStateEvalution(cb);
+}
+
+
+
 }  // namespace ceres

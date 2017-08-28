@@ -178,6 +178,7 @@ class ProblemImpl {
         << "Fast removal not enabled, residual_block_set is not maintained.";
     return residual_block_set_;
   }
+  void enableCopyStateEvalution(Problem::EvaluateCallback* cb);
 
  private:
   ParameterBlock* InternalAddParameterBlock(double* values, int size);
@@ -220,6 +221,10 @@ class ProblemImpl {
   std::vector<LocalParameterization*> local_parameterizations_to_delete_;
 
   CERES_DISALLOW_COPY_AND_ASSIGN(ProblemImpl);
+
+  Problem::EvaluateCallback* evaluateCallback_;
+
+
 };
 
 }  // namespace internal

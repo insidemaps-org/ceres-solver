@@ -569,6 +569,7 @@ void Solver::Solve(const Solver::Options& options,
 
   summary->fixed_cost = pp.fixed_cost;
   summary->preprocessor_time_in_seconds = WallTimeInSeconds() - start_time;
+  pp.reduced_program->evalCB_ = problem->problem_impl_->mutable_program()->evalCB_;
 
   if (status) {
     const double minimizer_start_time = WallTimeInSeconds();

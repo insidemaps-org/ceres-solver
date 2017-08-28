@@ -117,6 +117,10 @@ class GradientCheckingCostFunction : public CostFunction {
     }
 
     if (!okay) {
+    	gradient_checker_.Probe(parameters,
+    	                                        relative_precision_,
+    	                                        &results);
+
       std::string error_log = "Gradient Error detected!\nExtra info for "
           "this residual: " + extra_info_ + "\n" + results.error_log;
       callback_->SetGradientErrorDetected(error_log);

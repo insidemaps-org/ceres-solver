@@ -474,6 +474,52 @@ class CERES_EXPORT Problem {
                 std::vector<double>* gradient,
                 CRSMatrix* jacobian);
 
+  //Allow to modify the problem evaulation such that state is transfered to the client first before the evaluation
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  enum EvaluateCallbackEvent {
+	  UNDEFINED_EVENT,
+	  COPY_STATE_BEGIN,
+	  COPY_STATE_PARAMETERS,
+	  COPY_STATE_END,
+	  STATE_EVALUATE,
+	  FETCH_RESIDUALS_BEGIN,
+	  FETCH_RESIDUALS_END
+  };
+  struct EvaluateCallbackInfo {
+	  EvaluateCallbackInfo() :
+		  event(UNDEFINED_EVENT),
+		  needJacobian(false),
+		  needResidual(false),
+		  n_parameter_blocks(0),
+		  parameters(nullptr),
+		  costfunc(nullptr),
+		  lossfunc(nullptr)
+	  {
+	  }
+	  EvaluateCallbackEvent event;
+	  bool needJacobian;
+	  bool needResidual;
+	  int n_parameter_blocks;
+	  const double** parameters;
+	  const CostFunction* costfunc;
+	  const LossFunction* lossfunc;
+  };
+
+  class EvaluateCallback {
+  public:
+	  virtual void event(const EvaluateCallbackInfo& info) = 0;
+  };
+
+
+  //(Disables multithreding)
+  //During problem evaluation calls the Evaluation function twice
+  //Once to update the client with all state
+  //Then another to collect the residuals and Jacobians.
+  //This allows the client to batch residual evaluations
+  ////////////////////////////////////
+  void enableCopyStateEvalution(EvaluateCallback* cb);
+
+
  private:
   friend class Solver;
   friend class Covariance;
@@ -482,6 +528,8 @@ class CERES_EXPORT Problem {
 };
 
 }  // namespace ceres
+
+#define CERES_HAVE_COPY_STATE_CALLBACK 1
 
 #include "ceres/internal/reenable_warnings.h"
 

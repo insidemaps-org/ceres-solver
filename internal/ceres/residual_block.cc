@@ -69,20 +69,23 @@ bool ResidualBlock::Evaluate(const bool apply_loss_function,
                              double* cost,
                              double* residuals,
                              double** jacobians,
-                             double* scratch) const {
+                             double* scratch,
+							 Problem::EvaluateCallback* cb,
+							 Problem::EvaluateCallbackInfo* cbinfo
+							 ) const {
   const int num_parameter_blocks = NumParameterBlocks();
   const int num_residuals = cost_function_->num_residuals();
 
   // Collect the parameters from their blocks. This will rarely allocate, since
   // residuals taking more than 8 parameter block arguments are rare.
-  FixedArray<const double*, 8> parameters(num_parameter_blocks);
+  FixedArray<const double*, 16> parameters(num_parameter_blocks);
   for (int i = 0; i < num_parameter_blocks; ++i) {
     parameters[i] = parameter_blocks_[i]->state();
   }
 
   // Put pointers into the scratch space into global_jacobians as appropriate.
-  FixedArray<double*, 8> global_jacobians(num_parameter_blocks);
-  if (jacobians != NULL) {
+  FixedArray<double*, 16> global_jacobians(num_parameter_blocks);
+  if (jacobians != NULL && cb == nullptr) {
     for (int i = 0; i < num_parameter_blocks; ++i) {
       const ParameterBlock* parameter_block = parameter_blocks_[i];
       if (jacobians[i] != NULL &&
@@ -97,17 +100,32 @@ bool ResidualBlock::Evaluate(const bool apply_loss_function,
 
   // If the caller didn't request residuals, use the scratch space for them.
   bool outputting_residuals = (residuals != NULL);
-  if (!outputting_residuals) {
+  if (!outputting_residuals && cb == nullptr) {
     residuals = scratch;
   }
 
   // Invalidate the evaluation buffers so that we can check them after
   // the CostFunction::Evaluate call, to see if all the return values
   // that were required were written to and that they are finite.
-  double** eval_jacobians = (jacobians != NULL) ? global_jacobians.get() : NULL;
+  double** eval_jacobians = (jacobians != NULL && cb == nullptr) ? global_jacobians.get() : NULL;
 
-  InvalidateEvaluation(*this, cost, residuals, eval_jacobians);
+  if (cb == nullptr) {
+	  InvalidateEvaluation(*this, cost, residuals, eval_jacobians);
+  }
 
+  if (cb != nullptr) {
+	  if (cbinfo == nullptr) return false;
+	  cbinfo->event = Problem::COPY_STATE_PARAMETERS;
+	  cbinfo->needJacobian = jacobians != NULL;
+	  cbinfo->needResidual = outputting_residuals;
+	  cbinfo->n_parameter_blocks = num_parameter_blocks;
+	  cbinfo->parameters = parameters.get();
+	  cbinfo->lossfunc = loss_function_;
+	  cbinfo->costfunc = cost_function_;
+
+	  cb->event(*cbinfo);
+	  return true;
+  }
   if (!cost_function_->Evaluate(parameters.get(), residuals, eval_jacobians)) {
     return false;
   }

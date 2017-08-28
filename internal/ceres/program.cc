@@ -55,10 +55,11 @@ using std::set;
 using std::string;
 using std::vector;
 
-Program::Program() {}
+Program::Program() : evalCB_(nullptr),parameter_blocks_(), residual_blocks_() {}
 
 Program::Program(const Program& program)
-    : parameter_blocks_(program.parameter_blocks_),
+    : evalCB_(program.evalCB_),
+	  parameter_blocks_(program.parameter_blocks_),
       residual_blocks_(program.residual_blocks_) {
 }
 

@@ -35,6 +35,7 @@
 #include <string>
 #include <vector>
 #include "ceres/internal/port.h"
+#include "ceres/problem.h"
 
 namespace ceres {
 namespace internal {
@@ -162,6 +163,8 @@ class Program {
   // A human-readable dump of the parameter blocks for debugging.
   // TODO(keir): If necessary, also dump the residual blocks.
   std::string ToString() const;
+
+  Problem::EvaluateCallback* evalCB_;
 
  private:
   // Remove constant parameter blocks and residual blocks with no
