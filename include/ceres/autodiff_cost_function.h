@@ -167,14 +167,27 @@ class AutoDiffCostFunction : public SizedCostFunction<kNumResiduals,
                                                       N0, N1, N2, N3, N4,
                                                       N5, N6, N7, N8, N9> {
  public:
+
+	struct TagNoOwnership {
+
+	};
+
+  explicit AutoDiffCostFunction(const TagNoOwnership& tag, CostFunctor* functor)
+	  : functor_(functor),functor_deleter_(nullptr) {
+	CHECK_NE(kNumResiduals, DYNAMIC)
+		<< "Can't run the fixed-size constructor if the "
+		<< "number of residuals is set to ceres::DYNAMIC.";
+  }
+
+
   // Takes ownership of functor. Uses the template-provided value for the
   // number of residuals ("kNumResiduals").
   explicit AutoDiffCostFunction(CostFunctor* functor)
-      : functor_(functor) {
-    CHECK_NE(kNumResiduals, DYNAMIC)
-        << "Can't run the fixed-size constructor if the "
-        << "number of residuals is set to ceres::DYNAMIC.";
+      : functor_(functor),functor_deleter_(functor) {
   }
+
+
+
 
   // Takes ownership of functor. Ignores the template-provided
   // kNumResiduals in favor of the "num_residuals" argument provided.
@@ -218,8 +231,9 @@ class AutoDiffCostFunction : public SizedCostFunction<kNumResiduals,
                jacobians);
   }
 
- private:
-  internal::scoped_ptr<CostFunctor> functor_;
+private:
+  CostFunctor* functor_;
+  internal::scoped_ptr<CostFunctor> functor_deleter_;
 };
 
 }  // namespace ceres

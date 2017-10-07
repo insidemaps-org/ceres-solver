@@ -33,7 +33,7 @@ APP_CPPFLAGS += -fno-exceptions
 APP_CPPFLAGS += -frtti
 APP_CPPFLAGS += -isystem/usr/include/eigen3
 APP_CPPFLAGS += -std=c++11 -DMAX_LOG_LEVEL=-1 
-APP_CPPFLAGS += -O3 -funsafe-math-optimizations -ffast-math
+#APP_CPPFLAGS += -O3 -funsafe-math-optimizations -ffast-math
 
 APP_OPTIM := release
 APP_STL := gnustl_static
