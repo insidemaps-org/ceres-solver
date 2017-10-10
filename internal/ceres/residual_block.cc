@@ -146,6 +146,8 @@ bool ResidualBlock::Evaluate(const bool apply_loss_function,
                            cost,
                            residuals,
                            eval_jacobians);
+    //Call again to have a chance to debug the stuff:
+    cost_function_->Evaluate(parameters.get(), residuals, eval_jacobians);
     LOG(WARNING) << message;
     return false;
   }
