@@ -27,7 +27,6 @@
 # POSSIBILITY OF SUCH DAMAGE.
 #
 # Author: alexs.mac@gmail.com (Alex Stewart)
-
 # Adds Ceres' C++11 requirements to a target such that they are exported when
 # the target is exported (if the version of CMake supports it).
 #
@@ -55,20 +54,6 @@ function(add_ceres_cxx11_requirements_to_target)
           "included in an exported CMake target and the detected. compiler "
           "requires -std=c++11. The client is responsible for adding "
           "-std=c++11 when linking against: ${TARGET}.")
-      elseif (COMMAND target_compile_features)
-        # CMake >= 3.1, use new target_compile_features() to specify Ceres'
-        # C++11 requirements as used in the public API.  This assumes that
-        # C++11 STL features are available if the specified features are
-        # available.  We do not use the cxx_std_11 feature to specify this as
-        # this did not come in until CMake 3.8.
-        #
-        # The reason to prefer using target_compile_features() if it exists is
-        # that this handles 'upgrading' of the C++ standard required more
-        # gracefully, e.g. if a client of Ceres requires C++14, but Ceres was
-        # compiled against C++11 then target_compile_options() may not work as
-        # expected.
-        target_compile_features(
-          ${TARGET} PUBLIC cxx_alignas cxx_alignof cxx_constexpr)
       else()
         # CMake version >= 2.8.12 && < 3.1 supports target_compile_options()
         # but not target_compile_features(). For these intermediary versions,
