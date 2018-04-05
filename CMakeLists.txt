@@ -29,12 +29,37 @@
 # Authors: keir@google.com (Keir Mierle)
 #          alexs.mac@gmail.com (Alex Stewart)
 
-cmake_minimum_required(VERSION 2.8.0)
-cmake_policy(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
+cmake_policy(VERSION 3.5)
 
-cmake_policy(SET CMP0003 NEW)
-if (POLICY CMP0042)
-  cmake_policy(SET CMP0042 NEW)
+# Set the C++ version (must be >= C++11) when compiling Ceres.
+#
+# Reflect a user-specified (via -D) CMAKE_CXX_STANDARD if present, otherwise
+# default to C++11.
+set(DEFAULT_CXX_STANDARD ${CMAKE_CXX_STANDARD})
+if (NOT DEFAULT_CXX_STANDARD)
+  set(DEFAULT_CXX_STANDARD 11)
+endif()
+set(CMAKE_CXX_STANDARD ${DEFAULT_CXX_STANDARD} CACHE STRING
+  "C++ standard (minimum 11)" FORCE)
+# Restrict CMAKE_CXX_STANDARD to the valid versions permitted and ensure that
+# if one was forced via -D that it is in the valid set.
+set(ALLOWED_CXX_STANDARDS 11 14 17)
+set_property(CACHE CMAKE_CXX_STANDARD PROPERTY STRINGS ${ALLOWED_CXX_STANDARDS})
+list(FIND ALLOWED_CXX_STANDARDS ${CMAKE_CXX_STANDARD} POSITION)
+if (POSITION LESS 0)
+  message(FATAL_ERROR "Invalid CMAKE_CXX_STANDARD: ${CMAKE_CXX_STANDARD}. "
+    "Must be one of: ${ALLOWED_CXX_STANDARDS}")
+endif()
+# Specify the standard as a hard requirement, otherwise CMAKE_CXX_STANDARD is
+# interpreted as a suggestion that can decay *back* to lower versions.
+set(CMAKE_CXX_STANDARD_REQUIRED ON CACHE BOOL "")
+mark_as_advanced(CMAKE_CXX_STANDARD_REQUIRED)
+
+# MSVC versions < 2013 did not fully support >= C++11.
+if (MSVC AND MSVC_VERSION VERSION_LESS 1800)
+  message(FATAL_ERROR "Invalid MSVC_VERSION: ${MSVC_VERSION}. Ceres requires at "
+    "least MSVC 2013 Update 4+")
 endif()
 
 project(Ceres C CXX)
@@ -90,6 +115,7 @@ read_ceres_version_from_source(${Ceres_SOURCE_DIR})
 
 enable_testing()
 
+include(CMakeDependentOption)
 option(MINIGLOG "Use a stripped down version of glog." OFF)
 option(GFLAGS "Enable Google Flags." ON)
 option(SUITESPARSE "Enable SuiteSparse." ON)
@@ -103,38 +129,26 @@ option(CUSTOM_BLAS
        "Use handcoded BLAS routines (usually faster) instead of Eigen."
        ON)
 # Multithreading using OpenMP
-option(OPENMP "Enable threaded solving in Ceres (requires OpenMP)" ON)
+cmake_dependent_option(
+  OPENMP "Enable threaded solving in Ceres (requires OpenMP)" ON
+  "NOT TBB;NOT CXX11_THREADS" OFF)
+# Multithreading using TBB
+cmake_dependent_option(
+  TBB "Enable threaded solving in Ceres with TBB (requires TBB and C++11)" OFF
+  "NOT OPENMP;NOT CXX11_THREADS" OFF)
+# Multithreading using C++11 primitives.
+cmake_dependent_option(
+  CXX11_THREADS "Enable threaded solving in Ceres with C++11 primitives" OFF
+  "NOT OPENMP;NOT TBB" OFF)
 # Enable the use of Eigen as a sparse linear algebra library for
-# solving the nonlinear least squares problems. Enabling this
-# option will result in an LGPL licensed version of Ceres Solver
-# as the Simplicial Cholesky factorization in Eigen is licensed under the LGPL.
-# This does not affect the covariance estimation algorithm, as it
-# depends on the sparse QR factorization algorithm, which is licensed
-# under the MPL.
-OPTION(EIGENSPARSE
-  "Enable Eigen as a sparse linear algebra library, WARNING: results in an LGPL licensed Ceres." OFF)
-if (NOT MSVC)
-  # Ceres does not use C++11 internally, however it does use shared_ptr
-  # (required) and unordered_map (if available), both of which were present in
-  # previous iterations of what became C++11.  GCC & Clang can have both TR1 &
-  # C++11 versions of both shared_ptr & unordered_map and by default on Linux,
-  # we will detect the TR1 versions if they exist, as they do NOT require
-  # -std=c++11 to be passed when compiling Ceres, and any client code that uses
-  # Ceres.  This will result in conflicts if the client code uses C++11.
-  # Enabling this option forces the use of the C++11 versions (& -std=c++11) if
-  # available.
-  #
-  # This option is not available on Windows when using MSVC, as there, any new
-  # (C++11 etc) features available are on by default and there is no analogue to
-  # -std=c++11.  It will however be available for MinGW & CygWin, which can
-  # support -std=c++11.
-  option(CXX11 "Enable use of C++11 headers if available (requires client code use C++11)." OFF)
-endif(NOT MSVC)
+# solving the nonlinear least squares problems.
+option(EIGENSPARSE "Enable Eigen as a sparse linear algebra library." ON)
 option(EXPORT_BUILD_DIR
   "Export build directory using CMake (enables external use without install)." OFF)
 option(BUILD_TESTING "Enable tests" ON)
 option(BUILD_DOCUMENTATION "Build User's Guide (html)" OFF)
 option(BUILD_EXAMPLES "Build examples" ON)
+option(BUILD_BENCHMARKS "Build Ceres benchmarking suite" ON)
 option(BUILD_SHARED_LIBS "Build Ceres as a shared library." OFF)
 if (MSVC)
   option(MSVC_USE_STATIC_CRT
@@ -190,6 +204,7 @@ if (IOS)
   update_cache_variable(CXSPARSE OFF)
   update_cache_variable(GFLAGS OFF)
   update_cache_variable(OPENMP OFF)
+  update_cache_variable(TBB OFF)
   # Apple claims that the BLAS call dsyrk_ is a private API, and will not allow
   # you to submit to the Apple Store if the symbol is present.
   update_cache_variable(LAPACK OFF)
@@ -201,44 +216,42 @@ if (IOS)
 endif (IOS)
 
 unset(CERES_COMPILE_OPTIONS)
+message("-- Building with C++${CMAKE_CXX_STANDARD}")
 
 # Eigen.
 find_package(Eigen REQUIRED)
 if (EIGEN_FOUND)
+  message("-- Found Eigen version ${EIGEN_VERSION}: ${EIGEN_INCLUDE_DIRS}")
   if (EIGEN_VERSION VERSION_LESS 3.1.0)
     message(FATAL_ERROR "-- Ceres requires Eigen version >= 3.1.0 in order "
       "that Eigen/SparseCore be available, detected version of Eigen is: "
       "${EIGEN_VERSION}")
   endif (EIGEN_VERSION VERSION_LESS 3.1.0)
 
-  message("-- Found Eigen version ${EIGEN_VERSION}: ${EIGEN_INCLUDE_DIRS}")
-  # Ensure that only MPL2 licensed code is part of the default build.
-  message("")
-  message("   ===============================================================")
-  if (EIGENSPARSE)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_USE_EIGEN_SPARSE)
-    message("   Enabling the use of Eigen as a sparse linear algebra library ")
-    message("   for solving the nonlinear least squares problems. Enabling ")
-    message("   this option results in an LGPL licensed version of ")
-    message("   Ceres Solver as the Simplicial Cholesky factorization in Eigen")
-    message("   is licensed under the LGPL. ")
+  if (CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64.*|AARCH64.*)" AND
+      EIGEN_VERSION VERSION_LESS 3.3.4)
+    # As per issue #289: https://github.com/ceres-solver/ceres-solver/issues/289
+    # the bundle_adjustment_test will fail for Eigen < 3.3.4 on aarch64.
+    message(FATAL_ERROR "-- Ceres requires Eigen version >= 3.3.4 on aarch64. "
+      "Detected version of Eigen is: ${EIGEN_VERSION}.")
+  endif()
 
+  if (EIGENSPARSE)
+    message("-- Enabling use of Eigen as a sparse linear algebra library.")
+    list(APPEND CERES_COMPILE_OPTIONS CERES_USE_EIGEN_SPARSE)
     if (EIGEN_VERSION VERSION_LESS 3.2.2)
       message("   WARNING:")
       message("")
-      message("   Your version of Eigen is older than version 3.2.2.")
-      message("   The performance of SPARSE_NORMAL_CHOLESKY and SPARSE_SCHUR")
-      message("   linear solvers will suffer. ")
+      message("   Your version of Eigen (${EIGEN_VERSION}) is older than ")
+      message("   version 3.2.2.  The performance of SPARSE_NORMAL_CHOLESKY ")
+      message("   and SPARSE_SCHUR linear solvers will suffer.")
     endif (EIGEN_VERSION VERSION_LESS 3.2.2)
-
   else (EIGENSPARSE)
-    message("   Disabling the use of Eigen as a sparse linear algebra library.")
+    message("-- Disabling use of Eigen as a sparse linear algebra library.")
     message("   This does not affect the covariance estimation algorithm ")
     message("   which can still use the EIGEN_SPARSE_QR algorithm.")
     add_definitions(-DEIGEN_MPL2_ONLY)
   endif (EIGENSPARSE)
-    message("   ===============================================================")
-    message("")
 endif (EIGEN_FOUND)
 
 if (LAPACK)
@@ -412,103 +425,61 @@ if (OPENMP)
     list(APPEND CERES_COMPILE_OPTIONS CERES_USE_OPENMP)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-    if (UNIX)
-      # At least on Linux, we need pthreads to be enabled for mutex to
-      # compile.  This may not work on Windows or Android.
-      find_package(Threads REQUIRED)
-      list(APPEND CERES_COMPILE_OPTIONS CERES_HAVE_PTHREAD)
-      list(APPEND CERES_COMPILE_OPTIONS CERES_HAVE_RWLOCK)
-    endif (UNIX)
   else (OPENMP_FOUND)
     message("-- Failed to find OpenMP, disabling. This is expected on "
-      "Clang < 3.8, and at least Xcode <= 7.")
+      "Clang < 3.8, and at least Xcode <= 8.  See Ceres documentation for "
+      "instructions to build with LLVM from Homebrew to enable OpenMP on OS X.")
     update_cache_variable(OPENMP OFF)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_NO_THREADS)
   endif (OPENMP_FOUND)
 else (OPENMP)
-  message("-- Building without OpenMP (disabling multithreading).")
-  list(APPEND CERES_COMPILE_OPTIONS CERES_NO_THREADS)
+  message("-- Building without OpenMP, disabling.")
 endif (OPENMP)
 
 # Initialise CMAKE_REQUIRED_FLAGS used by CheckCXXSourceCompiles with the
 # contents of CMAKE_CXX_FLAGS such that if the user has passed extra flags
-# they are used when discovering shared_ptr/unordered_map.
+# they are used when checking for compiler features.
 set(CMAKE_REQUIRED_FLAGS ${CMAKE_CXX_FLAGS})
 
-include(CheckCXXCompilerFlag)
-check_cxx_compiler_flag("-std=c++11" COMPILER_HAS_CXX11_FLAG)
-if (CXX11 AND COMPILER_HAS_CXX11_FLAG)
-  # Update CMAKE_REQUIRED_FLAGS used by CheckCXXSourceCompiles to include
-  # -std=c++11 s/t we will detect the C++11 versions of unordered_map &
-  # shared_ptr if they exist.
-  set(CMAKE_REQUIRED_FLAGS "${CMAKE_REQUIRED_FLAGS} -std=c++11")
-endif (CXX11 AND COMPILER_HAS_CXX11_FLAG)
-
-# Set the Ceres compile definitions for the unordered_map configuration.
-include(FindUnorderedMap)
-find_unordered_map()
-if (UNORDERED_MAP_FOUND)
-  if (HAVE_UNORDERED_MAP_IN_STD_NAMESPACE)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_STD_UNORDERED_MAP)
-  endif(HAVE_UNORDERED_MAP_IN_STD_NAMESPACE)
-  if (HAVE_UNORDERED_MAP_IN_TR1_NAMESPACE)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_STD_UNORDERED_MAP_IN_TR1_NAMESPACE)
-  endif(HAVE_UNORDERED_MAP_IN_TR1_NAMESPACE)
-  if (HAVE_TR1_UNORDERED_MAP_IN_TR1_NAMESPACE)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_TR1_UNORDERED_MAP)
-  endif(HAVE_TR1_UNORDERED_MAP_IN_TR1_NAMESPACE)
-else (UNORDERED_MAP_FOUND)
-  message("-- Replacing unordered_map/set with map/set (warning: slower!), "
-    "try enabling CXX11 option if you expect C++11 to be available.")
-  list(APPEND CERES_COMPILE_OPTIONS CERES_NO_UNORDERED_MAP)
+if (TBB)
+  find_package(TBB QUIET)
+  if (TBB_FOUND)
+    message("-- Building with TBB (version: ${TBB_VERSION}).")
+    list(APPEND CERES_COMPILE_OPTIONS CERES_USE_TBB)
+    include_directories(${TBB_INCLUDE_DIRS})
+  else (TBB_FOUND)
+    message("-- Failed to find TBB, disabling.")
+    update_cache_variable(TBB OFF)
+  endif (TBB_FOUND)
 endif()
 
-# Set the Ceres compile definitions for the shared_ptr configuration.
-include(FindSharedPtr)
-find_shared_ptr()
-if (SHARED_PTR_FOUND)
-  if (SHARED_PTR_TR1_MEMORY_HEADER)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_TR1_MEMORY_HEADER)
-  endif (SHARED_PTR_TR1_MEMORY_HEADER)
-  if (SHARED_PTR_TR1_NAMESPACE)
-    list(APPEND CERES_COMPILE_OPTIONS CERES_TR1_SHARED_PTR)
-  endif (SHARED_PTR_TR1_NAMESPACE)
-else (SHARED_PTR_FOUND)
-  message(FATAL_ERROR "Unable to find shared_ptr, try enabling CXX11 option "
-    "if you expect C++11 to be available.")
-endif (SHARED_PTR_FOUND)
+if (CXX11_THREADS)
+  message("-- Building with C++11 threads.")
+  list(APPEND CERES_COMPILE_OPTIONS CERES_USE_CXX11_THREADS)
+endif()
 
-# To ensure that CXX11 accurately reflects whether we are using C++11,
-# check if it is required given where the potentially C++11 features Ceres
-# uses were found, and disable it if C++11 is not being used.
-if (CXX11)
-  if (NOT HAVE_SHARED_PTR_IN_STD_NAMESPACE AND
-      NOT HAVE_UNORDERED_MAP_IN_STD_NAMESPACE)
-    message("-- Failed to find C++11 components in C++11 locations & "
-      "namespaces, disabling CXX11.")
-    update_cache_variable(CXX11 OFF)
+if (NOT OPENMP AND NOT TBB AND NOT CXX11_THREADS)
+  message("-- Neither OpenMP, TBB or C++11 threads is enabled, "
+    "disabling multithreading.")
+  list(APPEND CERES_COMPILE_OPTIONS CERES_NO_THREADS)
+endif (NOT OPENMP AND NOT TBB AND NOT CXX11_THREADS)
+
+if (BUILD_BENCHMARKS)
+  find_package(benchmark QUIET)
+  if (benchmark_FOUND)
+     message("-- Found Google benchmark library. Building Ceres benchmarks.")
   else()
-    message("   ==============================================================")
-    message("   Compiling Ceres using C++11.  This will result in a version ")
-    message("   of Ceres that will require the use of C++11 in client code.")
-    message("   ==============================================================")
-    list(APPEND CERES_COMPILE_OPTIONS CERES_USE_CXX11)
-    if (COMPILER_HAS_CXX11_FLAG AND
-        CMAKE_VERSION VERSION_LESS "2.8.12")
-      # For CMake versions > 2.8.12, the C++11 dependency is rolled into the
-      # Ceres target, and all dependent targets, but for older versions of CMake
-      # the flag must be specified explicitly both for Ceres and the
-      # examples/tests.
-      set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-    endif()
+     message("-- Failed to find Google benchmark library, disabling build of benchmarks.")
+     update_cache_variable(BUILD_BENCHMARKS OFF)
   endif()
-endif(CXX11)
+  mark_as_advanced(benchmark_DIR)
+endif()
 
 include_directories(
   include
   internal
   internal/ceres
   ${GLOG_INCLUDE_DIRS})
+
 # Eigen SparseQR generates various compiler warnings related to unused and
 # uninitialised local variables.  To avoid having to individually suppress these
 # warnings around the #include statments for Eigen headers across all GCC/Clang

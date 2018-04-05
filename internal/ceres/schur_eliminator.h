@@ -32,14 +32,15 @@
 #define CERES_INTERNAL_SCHUR_ELIMINATOR_H_
 
 #include <map>
+#include <memory>
+#include <mutex>
 #include <vector>
-#include "ceres/mutex.h"
+
 #include "ceres/block_random_access_matrix.h"
 #include "ceres/block_sparse_matrix.h"
 #include "ceres/block_structure.h"
-#include "ceres/linear_solver.h"
 #include "ceres/internal/eigen.h"
-#include "ceres/internal/scoped_ptr.h"
+#include "ceres/linear_solver.h"
 
 namespace ceres {
 namespace internal {
@@ -226,7 +227,8 @@ template <int kRowBlockSize = Eigen::Dynamic,
 class SchurEliminator : public SchurEliminatorBase {
  public:
   explicit SchurEliminator(const LinearSolver::Options& options)
-      : num_threads_(options.num_threads) {
+      : num_threads_(options.num_threads),
+        context_(CHECK_NOTNULL(options.context)) {
   }
 
   // SchurEliminatorBase Interface
@@ -296,7 +298,8 @@ class SchurEliminator : public SchurEliminatorBase {
                  const double* inverse_ete_g,
                  double* rhs);
 
-  void ChunkOuterProduct(const CompressedRowBlockStructure* bs,
+  void ChunkOuterProduct(int thread_id,
+                         const CompressedRowBlockStructure* bs,
                          const Matrix& inverse_eet,
                          const double* buffer,
                          const BufferLayoutType& buffer_layout,
@@ -317,6 +320,7 @@ class SchurEliminator : public SchurEliminatorBase {
                                BlockRandomAccessMatrix* lhs);
 
   int num_threads_;
+  ContextImpl* context_;
   int num_eliminate_blocks_;
   bool assume_full_rank_ete_;
 
@@ -340,7 +344,7 @@ class SchurEliminator : public SchurEliminatorBase {
   //
   //   [thread_id * buffer_size_ , (thread_id + 1) * buffer_size_]
   //
-  scoped_array<double> buffer_;
+  std::unique_ptr<double[]> buffer_;
 
   // Buffer to store per thread matrix matrix products used by
   // ChunkOuterProduct. Like buffer_ it is of size num_threads *
@@ -348,14 +352,14 @@ class SchurEliminator : public SchurEliminatorBase {
   //
   //   [thread_id * buffer_size_ , (thread_id + 1) * buffer_size_ -1]
   //
-  scoped_array<double> chunk_outer_product_buffer_;
+  std::unique_ptr<double[]> chunk_outer_product_buffer_;
 
   int buffer_size_;
   int uneliminated_row_begins_;
 
   // Locks for the blocks in the right hand side of the reduced linear
   // system.
-  std::vector<Mutex*> rhs_locks_;
+ std::vector<std::mutex*> rhs_locks_;
 };
 
 }  // namespace internal
