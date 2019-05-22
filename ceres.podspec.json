@@ -1,0 +1,31 @@
+{
+  "name": "ceres",
+  "version": "2.0.0-vladicasub",
+  "summary": "ceres for iOS.",
+  "homepage": "http://ceres-solver.org",
+  "description": "Ceres Solver is an open source C++ library for modeling and solving large, complicated optimization problems. It can be used to solve Non-linear Least Squares problems with bounds constraints and general unconstrained optimization problems. It is a mature, feature rich, and performant library that has been used in production at Google since 2010.",
+  
+  "license": {
+    "type": "New BSD license",
+    "text": "Ceres Solver is licensed under the New BSD license, whose terms are as follows. Copyright 2016 Google Inc. All rights reserved. Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met: Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution. Neither the name of Google Inc., nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission. This software is provided by the copyright holders and contributors 'AS IS' and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall Google Inc. be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage."
+  },
+  "authors": "http://ceres-solver.org",
+  "source": {
+    "http": "https://github.com/insidemaps-org/ceres-solver/releases/download/1.14.0-vladicasub/ceres.framework-04241cb79f3479b6c9eba154102e4b90ccdc6ada.zip"
+  },
+  "platforms": {
+    "ios": "9.3"
+  },
+  "preserve_paths": "ceres.framework",
+  "source_files": "ceres.framework/Versions/A/Headers/**/*{.h,.hpp}",
+  "public_header_files": "ceres.framework/Versions/A/Headers/**/*{.h,.hpp}",
+  "vendored_frameworks": "ceres.framework",
+  "header_dir": "ceres",
+  "header_mappings_dir": "ceres.framework/Versions/A/Headers/",
+  "libraries": [
+    "stdc++"
+  ],
+  "frameworks": [
+  ],
+  "requires_arc": false
+}
