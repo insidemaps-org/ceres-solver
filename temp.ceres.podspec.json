@@ -12,7 +12,6 @@
   "authors": "http://ceres-solver.org",
   "source": {
     "http": "https://github.com/insidemaps-org/ceres-solver/releases/download/ceres-pod-2.0/ceres.framework-520e8655b9f5f5de3511823ea8d81138518a2f01.zip"
-"
   },
   "platforms": {
     "ios": "9.3"
