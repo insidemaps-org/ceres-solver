@@ -73,6 +73,7 @@ CERES_TESTS = [
     "array_utils",
     "autodiff_cost_function",
     "autodiff_local_parameterization",
+    "autodiff_manifold",
     "autodiff",
     "block_jacobi_preconditioner",
     "block_random_access_dense_matrix",
@@ -90,6 +91,7 @@ CERES_TESTS = [
     "cost_function_to_functor",
     "covariance",
     "cubic_interpolation",
+    "dense_cholesky",
     "dense_linear_solver",
     "dense_sparse_matrix",
     "detect_structure",
@@ -112,6 +114,7 @@ CERES_TESTS = [
     "inner_product_computer",
     "invert_psd_matrix",
     "is_close",
+    "iterative_refiner",
     "iterative_schur_complement_solver",
     "jet",
     "levenberg_marquardt_strategy",
@@ -163,14 +166,17 @@ TEST_COPTS = [
     # trigger incorrectly on parts of rotation_test. For now, disable them,
     # but in the future disable these warnings only for rotation_test.
     # TODO(keir): When the tests are macro-ified, apply these selectively.
-    "-Wno-nonnull-compare",
     "-Wno-address",
+
+    # Disable warnings about deprecated interfraces while we are
+    # transitioning from LocalParameterization to Manifolds.
+    "-Wno-deprecated-declarations",
 ]
 
 TEST_DEPS = [
     "//:ceres",
     "//:test_util",
-    "@com_github_eigen_eigen//:eigen",
+    "@com_gitlab_libeigen_eigen//:eigen",
     "@com_github_gflags_gflags//:gflags",
 ]
 
@@ -209,7 +215,6 @@ TEST_DEPS = [
     copts = TEST_COPTS,
     deps = TEST_DEPS + ["@com_github_google_benchmark//:benchmark"],
 ) for benchmark_name in [
-    "autodiff_cost_function_benchmark",
     "small_blas_gemm_benchmark",
     "small_blas_gemv_benchmark",
 ]]

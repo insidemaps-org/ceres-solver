@@ -32,16 +32,16 @@
 #include "ceres/canonical_views_clustering.h"
 
 #include <unordered_map>
+
 #include "ceres/graph.h"
 #include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 const int kVertexIds[] = {0, 1, 2, 3};
 class CanonicalViewsTest : public ::testing::Test {
  protected:
-  virtual void SetUp() {
+  void SetUp() final {
     // The graph structure is as follows.
     //
     // Vertex weights:   0      2      2      0
@@ -110,7 +110,6 @@ TEST_F(CanonicalViewsTest, SizePenaltyTest) {
   EXPECT_EQ(centers_[0], kVertexIds[1]);
 }
 
-
 // Increases view score weight so vertex 2 will be chosen.
 TEST_F(CanonicalViewsTest, ViewScoreTest) {
   options_.min_views = 0;
@@ -139,5 +138,4 @@ TEST_F(CanonicalViewsTest, SimilarityPenaltyTest) {
   EXPECT_EQ(centers_[0], kVertexIds[1]);
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

@@ -1,5 +1,5 @@
 // Ceres Solver - A fast non-linear least squares minimizer
-// Copyright 2018 Google Inc. All rights reserved.
+// Copyright 2022 Google Inc. All rights reserved.
 // http://ceres-solver.org/
 //
 // Redistribution and use in source and binary forms, with or without
@@ -33,12 +33,14 @@
 #ifndef CERES_INTERNAL_PAIR_HASH_H_
 #define CERES_INTERNAL_PAIR_HASH_H_
 
-#include "ceres/internal/port.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <utility>
-#include "ceres/integral_types.h"
 
-namespace ceres {
-namespace internal {
+#include "ceres/internal/export.h"
+
+namespace ceres::internal {
 
 #if defined(_WIN32) && !defined(__MINGW64__) && !defined(__MINGW32__)
 #define GG_LONGLONG(x) x##I64
@@ -53,8 +55,10 @@ namespace internal {
 // in 18 cycles if you're lucky. On x86 architectures, this requires 45
 // instructions in 27 cycles, if you're lucky.
 //
+// clang-format off
+//
 // 32bit version
-inline void hash_mix(uint32& a, uint32& b, uint32& c) {
+inline void hash_mix(uint32_t& a, uint32_t& b, uint32_t& c) {
   a -= b; a -= c; a ^= (c>>13);
   b -= c; b -= a; b ^= (a<<8);
   c -= a; c -= b; c ^= (b>>13);
@@ -67,7 +71,7 @@ inline void hash_mix(uint32& a, uint32& b, uint32& c) {
 }
 
 // 64bit version
-inline void hash_mix(uint64& a, uint64& b, uint64& c) {
+inline void hash_mix(uint64_t& a, uint64_t& b, uint64_t& c) {
   a -= b; a -= c; a ^= (c>>43);
   b -= c; b -= a; b ^= (a<<9);
   c -= a; c -= b; c ^= (b>>8);
@@ -78,17 +82,18 @@ inline void hash_mix(uint64& a, uint64& b, uint64& c) {
   b -= c; b -= a; b ^= (a<<49);
   c -= a; c -= b; c ^= (b>>11);
 }
+// clang-format on
 
-inline uint32 Hash32NumWithSeed(uint32 num, uint32 c) {
+inline uint32_t Hash32NumWithSeed(uint32_t num, uint32_t c) {
   // The golden ratio; an arbitrary value.
-  uint32 b = 0x9e3779b9UL;
+  uint32_t b = 0x9e3779b9UL;
   hash_mix(num, b, c);
   return c;
 }
 
-inline uint64 Hash64NumWithSeed(uint64 num, uint64 c) {
+inline uint64_t Hash64NumWithSeed(uint64_t num, uint64_t c) {
   // More of the golden ratio.
-  uint64 b = GG_ULONGLONG(0xe08c1d668b756f82);
+  uint64_t b = GG_ULONGLONG(0xe08c1d668b756f82);
   hash_mix(num, b, c);
   return c;
 }
@@ -101,12 +106,11 @@ struct pair_hash {
     const std::size_t h1 = std::hash<T>()(p.first);
     const std::size_t h2 = std::hash<T>()(p.second);
     // The decision below is at compile time
-    return (sizeof(h1) <= sizeof(uint32)) ? Hash32NumWithSeed(h1, h2)
-                                          : Hash64NumWithSeed(h1, h2);
+    return (sizeof(h1) <= sizeof(uint32_t)) ? Hash32NumWithSeed(h1, h2)
+                                            : Hash64NumWithSeed(h1, h2);
   }
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_PAIR_HASH_H_

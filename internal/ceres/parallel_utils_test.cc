@@ -29,14 +29,16 @@
 // Author: wjr@google.com (William Rucklidge)
 
 // This include must come before any #ifndef check on Ceres compile options.
-#include "ceres/internal/port.h"
+// clang-format off
+#include "ceres/internal/config.h"
+// clang-format on
+
 #include "ceres/parallel_utils.h"
 
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 // Tests that unfolding linear iterations to triangular iterations produces
 // indices that are in-range and unique.
@@ -57,5 +59,4 @@ TEST(LinearIndexToUpperTriangularIndexTest, UniqueAndValid) {
   }
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

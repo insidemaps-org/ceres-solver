@@ -29,23 +29,21 @@
 // Author: vitus@google.com (Michael Vitus)
 
 // This include must come before any #ifndef check on Ceres compile options.
-#include "ceres/internal/port.h"
+#include "ceres/internal/config.h"
 
-#ifdef CERES_USE_CXX11_THREADS
-
-#include "ceres/thread_pool.h"
+#ifdef CERES_USE_CXX_THREADS
 
 #include <chrono>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
 
+#include "ceres/thread_pool.h"
+#include "glog/logging.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
-#include "glog/logging.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 // Adds a number of tasks to the thread pool and ensures they all run.
 TEST(ThreadPool, AddTask) {
@@ -59,14 +57,14 @@ TEST(ThreadPool, AddTask) {
 
     for (int i = 0; i < num_tasks; ++i) {
       thread_pool.AddTask([&]() {
-          std::unique_lock<std::mutex> lock(mutex);
-          ++value;
-          condition.notify_all();
-        });
+        std::lock_guard<std::mutex> lock(mutex);
+        ++value;
+        condition.notify_all();
+      });
     }
 
     std::unique_lock<std::mutex> lock(mutex);
-    condition.wait(lock, [&](){return value == num_tasks;});
+    condition.wait(lock, [&]() { return value == num_tasks; });
   }
 
   EXPECT_EQ(num_tasks, value);
@@ -96,7 +94,7 @@ TEST(ThreadPool, ResizingDuringExecution) {
     auto task = [&]() {
       // This will block until the mutex is released inside the condition
       // variable.
-      std::unique_lock<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(mutex);
       ++value;
       condition.notify_all();
     };
@@ -116,7 +114,7 @@ TEST(ThreadPool, ResizingDuringExecution) {
 
     // Unlock the mutex to unblock all of the threads and wait until all of the
     // tasks are completed.
-    condition.wait(lock, [&](){return value == num_tasks;});
+    condition.wait(lock, [&]() { return value == num_tasks; });
   }
 
   EXPECT_EQ(num_tasks, value);
@@ -150,7 +148,7 @@ TEST(ThreadPool, Destructor) {
       thread_pool.AddTask([&]() {
         // This will block until the mutex is released inside the condition
         // variable.
-        std::unique_lock<std::mutex> lock(mutex);
+        std::lock_guard<std::mutex> lock(mutex);
         ++value;
         condition.notify_all();
       });
@@ -194,7 +192,6 @@ TEST(ThreadPool, Resize) {
   EXPECT_EQ(2, thread_pool.Size());
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
-#endif // CERES_USE_CXX11_THREADS
+#endif  // CERES_USE_CXX_THREADS

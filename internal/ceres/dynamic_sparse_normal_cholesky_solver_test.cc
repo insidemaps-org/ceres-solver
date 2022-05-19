@@ -29,17 +29,18 @@
 // Author: sameeragarwal@google.com (Sameer Agarwal)
 
 #include <memory>
+
+#include "Eigen/Cholesky"
 #include "ceres/casts.h"
 #include "ceres/compressed_row_sparse_matrix.h"
 #include "ceres/context_impl.h"
+#include "ceres/internal/config.h"
 #include "ceres/linear_least_squares_problems.h"
 #include "ceres/linear_solver.h"
 #include "ceres/triplet_sparse_matrix.h"
 #include "ceres/types.h"
 #include "glog/logging.h"
 #include "gtest/gtest.h"
-
-#include "Eigen/Cholesky"
 
 namespace ceres {
 namespace internal {
@@ -49,20 +50,20 @@ namespace internal {
 // sparsity.
 class DynamicSparseNormalCholeskySolverTest : public ::testing::Test {
  protected:
-  virtual void SetUp() {
-    std::unique_ptr<LinearLeastSquaresProblem> problem(
-        CreateLinearLeastSquaresProblemFromId(1));
-    A_.reset(CompressedRowSparseMatrix::FromTripletSparseMatrix(
-        *down_cast<TripletSparseMatrix*>(problem->A.get())));
-    b_.reset(problem->b.release());
-    D_.reset(problem->D.release());
+  void SetUp() final {
+    std::unique_ptr<LinearLeastSquaresProblem> problem =
+        CreateLinearLeastSquaresProblemFromId(1);
+    A_ = CompressedRowSparseMatrix::FromTripletSparseMatrix(
+        *down_cast<TripletSparseMatrix*>(problem->A.get()));
+    b_ = std::move(problem->b);
+    D_ = std::move(problem->D);
   }
 
   void TestSolver(const LinearSolver::Options& options, double* D) {
     Matrix dense_A;
     A_->ToDenseMatrix(&dense_A);
     Matrix lhs = dense_A.transpose() * dense_A;
-    if (D != NULL) {
+    if (D != nullptr) {
       lhs += (ConstVectorRef(D, A_->num_cols()).array() *
               ConstVectorRef(D, A_->num_cols()).array())
                  .matrix()
@@ -82,7 +83,7 @@ class DynamicSparseNormalCholeskySolverTest : public ::testing::Test {
     summary = solver->Solve(
         A_.get(), b_.get(), per_solve_options, actual_solution.data());
 
-    EXPECT_EQ(summary.termination_type, LINEAR_SOLVER_SUCCESS);
+    EXPECT_EQ(summary.termination_type, LinearSolverTerminationType::SUCCESS);
 
     for (int i = 0; i < A_->num_cols(); ++i) {
       EXPECT_NEAR(expected_solution(i), actual_solution(i), 1e-8)
@@ -92,15 +93,17 @@ class DynamicSparseNormalCholeskySolverTest : public ::testing::Test {
   }
 
   void TestSolver(
-      const SparseLinearAlgebraLibraryType sparse_linear_algebra_library_type) {
+      const SparseLinearAlgebraLibraryType sparse_linear_algebra_library_type,
+      const OrderingType ordering_type) {
     LinearSolver::Options options;
     options.type = SPARSE_NORMAL_CHOLESKY;
     options.dynamic_sparsity = true;
     options.sparse_linear_algebra_library_type =
         sparse_linear_algebra_library_type;
+    options.ordering_type = ordering_type;
     ContextImpl context;
     options.context = &context;
-    TestSolver(options, NULL);
+    TestSolver(options, nullptr);
     TestSolver(options, D_.get());
   }
 
@@ -110,20 +113,25 @@ class DynamicSparseNormalCholeskySolverTest : public ::testing::Test {
 };
 
 #ifndef CERES_NO_SUITESPARSE
-TEST_F(DynamicSparseNormalCholeskySolverTest, SuiteSparse) {
-  TestSolver(SUITE_SPARSE);
+TEST_F(DynamicSparseNormalCholeskySolverTest, SuiteSparseAMD) {
+  TestSolver(SUITE_SPARSE, OrderingType::AMD);
 }
+#ifndef CERES_NO_METIS
+TEST_F(DynamicSparseNormalCholeskySolverTest, SuiteSparseNESDIS) {
+  TestSolver(SUITE_SPARSE, OrderingType::NESDIS);
+}
+#endif
 #endif
 
 #ifndef CERES_NO_CXSPARSE
 TEST_F(DynamicSparseNormalCholeskySolverTest, CXSparse) {
-  TestSolver(CX_SPARSE);
+  TestSolver(CX_SPARSE, OrderingType::AMD);
 }
 #endif
 
 #ifdef CERES_USE_EIGEN_SPARSE
 TEST_F(DynamicSparseNormalCholeskySolverTest, Eigen) {
-  TestSolver(EIGEN_SPARSE);
+  TestSolver(EIGEN_SPARSE, OrderingType::AMD);
 }
 #endif  // CERES_USE_EIGEN_SPARSE
 

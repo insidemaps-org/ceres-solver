@@ -1,3 +1,7 @@
+.. default-domain:: cpp
+
+.. cpp:namespace:: ceres
+
 ====
 Why?
 ====
@@ -27,13 +31,13 @@ Why?
     allows the user to *shape* their residuals using a
     :class:`LossFunction` to reduce the influence of outliers.
 
-  - **Local Parameterization** In many cases, some parameters lie on a
-    manifold other than Euclidean space, e.g., rotation matrices. In
-    such cases, the user can specify the geometry of the local tangent
-    space by specifying a :class:`LocalParameterization` object.
+  - **Manifolds** In many cases, some parameters lie on a manifold
+    other than Euclidean space, e.g., rotation matrices. In such
+    cases, the user can specify the geometry of the local tangent
+    space by specifying a :class:`Manifold` object.
 
 * **Solver Choice** Depending on the size, sparsity structure, time &
-  memory budgets, and solution quality requiremnts, different
+  memory budgets, and solution quality requirements, different
   optimization algorithms will suit different needs. To this end,
   Ceres Solver comes with a variety of optimization algorithms:
 
@@ -42,10 +46,11 @@ Why?
     computational cost in all of these methods is the solution of a
     linear system. To this end Ceres ships with a variety of linear
     solvers - dense QR and dense Cholesky factorization (using
-    `Eigen`_ or `LAPACK`_) for dense problems, sparse Cholesky
-    factorization (`SuiteSparse`_, `CXSparse`_ or `Eigen`_) for large
-    sparse problems custom Schur complement based dense, sparse, and
-    iterative linear solvers for `bundle adjustment`_ problems.
+    `Eigen`_, `LAPACK`_ or `CUDA`_) for dense problems, sparse
+    Cholesky factorization (`SuiteSparse`_, `Apple's Accelerate`_,
+    `CXSparse`_ `Eigen`_) for large sparse problems, custom Schur
+    complement based dense, sparse, and iterative linear solvers for
+    `bundle adjustment`_ problems.
 
   - **Line Search Solvers** - When the problem size is so large that
     storing and factoring the Jacobian is not feasible or a low
@@ -54,8 +59,12 @@ Why?
     of Non-linear Conjugate Gradients, BFGS and LBFGS.
 
 * **Speed** - Ceres Solver has been extensively optimized, with C++
-  templating, hand written linear algebra routines and OpenMP or TBB
-  based multithreading of the Jacobian evaluation and the linear solvers.
+  templating, hand written linear algebra routines and OpenMP or
+  modern C++ threads based multithreading of the Jacobian evaluation
+  and the linear solvers.
+
+* **GPU Acceleration** If your system supports `CUDA`_ then Ceres
+  Solver can use the Nvidia GPU on your system to speed up the solver.
 
 * **Solution Quality** Ceres is the `best performing`_ solver on the NIST
   problem set used by Mondragon and Borchers for benchmarking
@@ -63,7 +72,7 @@ Why?
 
 * **Covariance estimation** - Evaluate the sensitivity/uncertainty of
   the solution by evaluating all or part of the covariance
-  matrix. Ceres is one of the few solvers that allows you to to do
+  matrix. Ceres is one of the few solvers that allows you to do
   this analysis at scale.
 
 * **Community** Since its release as an open source software, Ceres
@@ -84,3 +93,5 @@ Why?
 .. _CXSparse: https://www.cise.ufl.edu/research/sparse/CXSparse/
 .. _automatic: http://en.wikipedia.org/wiki/Automatic_differentiation
 .. _numeric: http://en.wikipedia.org/wiki/Numerical_differentiation
+.. _CUDA : https://developer.nvidia.com/cuda-toolkit
+.. _Apple's Accelerate: https://developer.apple.com/documentation/accelerate/sparse_solvers

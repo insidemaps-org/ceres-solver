@@ -83,60 +83,81 @@
 #include "glog/logging.h"
 
 DEFINE_bool(use_tiny_solver, false, "Use TinySolver instead of Ceres::Solver");
-DEFINE_string(nist_data_dir, "", "Directory containing the NIST non-linear"
-              "regression examples");
-DEFINE_string(minimizer, "trust_region",
+DEFINE_string(nist_data_dir,
+              "",
+              "Directory containing the NIST non-linear regression examples");
+DEFINE_string(minimizer,
+              "trust_region",
               "Minimizer type to use, choices are: line_search & trust_region");
-DEFINE_string(trust_region_strategy, "levenberg_marquardt",
+DEFINE_string(trust_region_strategy,
+              "levenberg_marquardt",
               "Options are: levenberg_marquardt, dogleg");
-DEFINE_string(dogleg, "traditional_dogleg",
+DEFINE_string(dogleg,
+              "traditional_dogleg",
               "Options are: traditional_dogleg, subspace_dogleg");
-DEFINE_string(linear_solver, "dense_qr", "Options are: "
-              "sparse_cholesky, dense_qr, dense_normal_cholesky and"
-              "cgnr");
-DEFINE_string(preconditioner, "jacobi", "Options are: "
-              "identity, jacobi");
-DEFINE_string(line_search, "wolfe",
+DEFINE_string(linear_solver,
+              "dense_qr",
+              "Options are: sparse_cholesky, dense_qr, dense_normal_cholesky "
+              "and cgnr");
+DEFINE_string(dense_linear_algebra_library,
+              "eigen",
+              "Options are: eigen, lapack, and cuda.");
+DEFINE_string(preconditioner, "jacobi", "Options are: identity, jacobi");
+DEFINE_string(line_search,
+              "wolfe",
               "Line search algorithm to use, choices are: armijo and wolfe.");
-DEFINE_string(line_search_direction, "lbfgs",
+DEFINE_string(line_search_direction,
+              "lbfgs",
               "Line search direction algorithm to use, choices: lbfgs, bfgs");
-DEFINE_int32(max_line_search_iterations, 20,
+DEFINE_int32(max_line_search_iterations,
+             20,
              "Maximum number of iterations for each line search.");
-DEFINE_int32(max_line_search_restarts, 10,
+DEFINE_int32(max_line_search_restarts,
+             10,
              "Maximum number of restarts of line search direction algorithm.");
-DEFINE_string(line_search_interpolation, "cubic",
-              "Degree of polynomial aproximation in line search, "
-              "choices are: bisection, quadratic & cubic.");
-DEFINE_int32(lbfgs_rank, 20,
+DEFINE_string(line_search_interpolation,
+              "cubic",
+              "Degree of polynomial approximation in line search, choices are: "
+              "bisection, quadratic & cubic.");
+DEFINE_int32(lbfgs_rank,
+             20,
              "Rank of L-BFGS inverse Hessian approximation in line search.");
-DEFINE_bool(approximate_eigenvalue_bfgs_scaling, false,
+DEFINE_bool(approximate_eigenvalue_bfgs_scaling,
+            false,
             "Use approximate eigenvalue scaling in (L)BFGS line search.");
-DEFINE_double(sufficient_decrease, 1.0e-4,
+DEFINE_double(sufficient_decrease,
+              1.0e-4,
               "Line search Armijo sufficient (function) decrease factor.");
-DEFINE_double(sufficient_curvature_decrease, 0.9,
+DEFINE_double(sufficient_curvature_decrease,
+              0.9,
               "Line search Wolfe sufficient curvature decrease factor.");
 DEFINE_int32(num_iterations, 10000, "Number of iterations");
-DEFINE_bool(nonmonotonic_steps, false, "Trust region algorithm can use"
-            " nonmonotic steps");
+DEFINE_bool(nonmonotonic_steps,
+            false,
+            "Trust region algorithm can use nonmonotic steps");
 DEFINE_double(initial_trust_region_radius, 1e4, "Initial trust region radius");
-DEFINE_bool(use_numeric_diff, false,
+DEFINE_bool(use_numeric_diff,
+            false,
             "Use numeric differentiation instead of automatic "
             "differentiation.");
-DEFINE_string(numeric_diff_method, "ridders", "When using numeric "
-              "differentiation, selects algorithm. Options are: central, "
-              "forward, ridders.");
-DEFINE_double(ridders_step_size, 1e-9, "Initial step size for Ridders "
-              "numeric differentiation.");
-DEFINE_int32(ridders_extrapolations, 3, "Maximal number of Ridders "
-             "extrapolations.");
+DEFINE_string(numeric_diff_method,
+              "ridders",
+              "When using numeric differentiation, selects algorithm. Options "
+              "are: central, forward, ridders.");
+DEFINE_double(ridders_step_size,
+              1e-9,
+              "Initial step size for Ridders numeric differentiation.");
+DEFINE_int32(ridders_extrapolations,
+             3,
+             "Maximal number of Ridders extrapolations.");
 
-namespace ceres {
-namespace examples {
+namespace ceres::examples {
+namespace {
 
 using Eigen::Dynamic;
 using Eigen::RowMajor;
-typedef Eigen::Matrix<double, Dynamic, 1> Vector;
-typedef Eigen::Matrix<double, Dynamic, Dynamic, RowMajor> Matrix;
+using Vector = Eigen::Matrix<double, Dynamic, 1>;
+using Matrix = Eigen::Matrix<double, Dynamic, Dynamic, RowMajor>;
 
 using std::atof;
 using std::atoi;
@@ -148,7 +169,7 @@ using std::vector;
 void SplitStringUsingChar(const string& full,
                           const char delim,
                           vector<string>* result) {
-  std::back_insert_iterator< vector<string> > it(*result);
+  std::back_insert_iterator<vector<string>> it(*result);
 
   const char* p = full.data();
   const char* end = p + full.size();
@@ -158,7 +179,7 @@ void SplitStringUsingChar(const string& full,
     } else {
       const char* start = p;
       while (++p != end && *p != delim) {
-        // Skip to the next occurence of the delimiter.
+        // Skip to the next occurrence of the delimiter.
       }
       *it++ = string(start, p - start);
     }
@@ -221,15 +242,15 @@ class NISTProblem {
 
     // Parse the remaining parameter lines.
     for (int parameter_id = 1; parameter_id < kNumParameters; ++parameter_id) {
-     GetAndSplitLine(ifs, &pieces);
-     // b2, b3, ....
-     for (int i = 0; i < kNumTries; ++i) {
-       initial_parameters_(i, parameter_id) = atof(pieces[i + 2].c_str());
-     }
-     final_parameters_(0, parameter_id) = atof(pieces[2 + kNumTries].c_str());
+      GetAndSplitLine(ifs, &pieces);
+      // b2, b3, ....
+      for (int i = 0; i < kNumTries; ++i) {
+        initial_parameters_(i, parameter_id) = atof(pieces[i + 2].c_str());
+      }
+      final_parameters_(0, parameter_id) = atof(pieces[2 + kNumTries].c_str());
     }
 
-    // Certfied cost
+    // Certified cost
     SkipLines(ifs, 1);
     GetAndSplitLine(ifs, &pieces);
     certified_cost_ = atof(pieces[4].c_str()) / 2.0;
@@ -240,26 +261,28 @@ class NISTProblem {
       GetAndSplitLine(ifs, &pieces);
       // Response.
       for (int j = 0; j < kNumResponses; ++j) {
-        response_(i, j) =  atof(pieces[j].c_str());
+        response_(i, j) = atof(pieces[j].c_str());
       }
 
       // Predictor variables.
       for (int j = 0; j < kNumPredictors; ++j) {
-        predictor_(i, j) =  atof(pieces[j + kNumResponses].c_str());
+        predictor_(i, j) = atof(pieces[j + kNumResponses].c_str());
       }
     }
   }
 
-  Matrix initial_parameters(int start) const { return initial_parameters_.row(start); }  // NOLINT
-  Matrix final_parameters() const  { return final_parameters_; }
-  Matrix predictor()        const { return predictor_;         }
-  Matrix response()         const { return response_;          }
-  int predictor_size()      const { return predictor_.cols();  }
-  int num_observations()    const { return predictor_.rows();  }
-  int response_size()       const { return response_.cols();   }
-  int num_parameters()      const { return initial_parameters_.cols(); }
-  int num_starts()          const { return initial_parameters_.rows(); }
-  double certified_cost()   const { return certified_cost_; }
+  Matrix initial_parameters(int start) const {
+    return initial_parameters_.row(start);
+  }  // NOLINT
+  Matrix final_parameters() const { return final_parameters_; }
+  Matrix predictor() const { return predictor_; }
+  Matrix response() const { return response_; }
+  int predictor_size() const { return predictor_.cols(); }
+  int num_observations() const { return predictor_.rows(); }
+  int response_size() const { return response_.cols(); }
+  int num_parameters() const { return initial_parameters_.cols(); }
+  int num_starts() const { return initial_parameters_.rows(); }
+  double certified_cost() const { return certified_cost_; }
 
  private:
   Matrix predictor_;
@@ -269,20 +292,22 @@ class NISTProblem {
   double certified_cost_;
 };
 
-#define NIST_BEGIN(CostFunctionName)                          \
-  struct CostFunctionName {                                   \
-  CostFunctionName(const double* const x,                     \
-                   const double* const y,                     \
-                   const int n)                               \
-      : x_(x), y_(y), n_(n) {}                                \
-    const double* x_;                                         \
-    const double* y_;                                         \
-    const int n_;                                             \
-    template <typename T>                                     \
-    bool operator()(const T* const b, T* residual) const {    \
-      for (int i = 0; i < n_; ++i) {                          \
-        const T x(x_[i]);                                     \
+#define NIST_BEGIN(CostFunctionName)                       \
+  struct CostFunctionName {                                \
+    CostFunctionName(const double* const x,                \
+                     const double* const y,                \
+                     const int n)                          \
+        : x_(x), y_(y), n_(n) {}                           \
+    const double* x_;                                      \
+    const double* y_;                                      \
+    const int n_;                                          \
+    template <typename T>                                  \
+    bool operator()(const T* const b, T* residual) const { \
+      for (int i = 0; i < n_; ++i) {                       \
+        const T x(x_[i]);                                  \
         residual[i] = y_[i] - (
+
+// clang-format off
 
 #define NIST_END ); } return true; }};
 
@@ -429,42 +454,54 @@ struct Nelson {
   const int n_;
 };
 
+// clang-format on
+
 static void SetNumericDiffOptions(ceres::NumericDiffOptions* options) {
-  options->max_num_ridders_extrapolations = FLAGS_ridders_extrapolations;
-  options->ridders_relative_initial_step_size = FLAGS_ridders_step_size;
+  options->max_num_ridders_extrapolations =
+      CERES_GET_FLAG(FLAGS_ridders_extrapolations);
+  options->ridders_relative_initial_step_size =
+      CERES_GET_FLAG(FLAGS_ridders_step_size);
 }
 
 void SetMinimizerOptions(ceres::Solver::Options* options) {
-  CHECK(
-      ceres::StringToMinimizerType(FLAGS_minimizer, &options->minimizer_type));
-  CHECK(ceres::StringToLinearSolverType(FLAGS_linear_solver,
+  CHECK(ceres::StringToMinimizerType(CERES_GET_FLAG(FLAGS_minimizer),
+                                     &options->minimizer_type));
+  CHECK(ceres::StringToLinearSolverType(CERES_GET_FLAG(FLAGS_linear_solver),
                                         &options->linear_solver_type));
-  CHECK(ceres::StringToPreconditionerType(FLAGS_preconditioner,
+  CHECK(StringToDenseLinearAlgebraLibraryType(
+      CERES_GET_FLAG(FLAGS_dense_linear_algebra_library),
+      &options->dense_linear_algebra_library_type));
+  CHECK(ceres::StringToPreconditionerType(CERES_GET_FLAG(FLAGS_preconditioner),
                                           &options->preconditioner_type));
   CHECK(ceres::StringToTrustRegionStrategyType(
-      FLAGS_trust_region_strategy, &options->trust_region_strategy_type));
-  CHECK(ceres::StringToDoglegType(FLAGS_dogleg, &options->dogleg_type));
+      CERES_GET_FLAG(FLAGS_trust_region_strategy),
+      &options->trust_region_strategy_type));
+  CHECK(ceres::StringToDoglegType(CERES_GET_FLAG(FLAGS_dogleg),
+                                  &options->dogleg_type));
   CHECK(ceres::StringToLineSearchDirectionType(
-      FLAGS_line_search_direction, &options->line_search_direction_type));
-  CHECK(ceres::StringToLineSearchType(FLAGS_line_search,
+      CERES_GET_FLAG(FLAGS_line_search_direction),
+      &options->line_search_direction_type));
+  CHECK(ceres::StringToLineSearchType(CERES_GET_FLAG(FLAGS_line_search),
                                       &options->line_search_type));
   CHECK(ceres::StringToLineSearchInterpolationType(
-      FLAGS_line_search_interpolation,
+      CERES_GET_FLAG(FLAGS_line_search_interpolation),
       &options->line_search_interpolation_type));
 
-  options->max_num_iterations = FLAGS_num_iterations;
-  options->use_nonmonotonic_steps = FLAGS_nonmonotonic_steps;
-  options->initial_trust_region_radius = FLAGS_initial_trust_region_radius;
-  options->max_lbfgs_rank = FLAGS_lbfgs_rank;
-  options->line_search_sufficient_function_decrease = FLAGS_sufficient_decrease;
+  options->max_num_iterations = CERES_GET_FLAG(FLAGS_num_iterations);
+  options->use_nonmonotonic_steps = CERES_GET_FLAG(FLAGS_nonmonotonic_steps);
+  options->initial_trust_region_radius =
+      CERES_GET_FLAG(FLAGS_initial_trust_region_radius);
+  options->max_lbfgs_rank = CERES_GET_FLAG(FLAGS_lbfgs_rank);
+  options->line_search_sufficient_function_decrease =
+      CERES_GET_FLAG(FLAGS_sufficient_decrease);
   options->line_search_sufficient_curvature_decrease =
-      FLAGS_sufficient_curvature_decrease;
+      CERES_GET_FLAG(FLAGS_sufficient_curvature_decrease);
   options->max_num_line_search_step_size_iterations =
-      FLAGS_max_line_search_iterations;
+      CERES_GET_FLAG(FLAGS_max_line_search_iterations);
   options->max_num_line_search_direction_restarts =
-      FLAGS_max_line_search_restarts;
+      CERES_GET_FLAG(FLAGS_max_line_search_restarts);
   options->use_approximate_eigenvalue_bfgs_scaling =
-      FLAGS_approximate_eigenvalue_bfgs_scaling;
+      CERES_GET_FLAG(FLAGS_approximate_eigenvalue_bfgs_scaling);
   options->function_tolerance = std::numeric_limits<double>::epsilon();
   options->gradient_tolerance = std::numeric_limits<double>::epsilon();
   options->parameter_tolerance = std::numeric_limits<double>::epsilon();
@@ -472,9 +509,9 @@ void SetMinimizerOptions(ceres::Solver::Options* options) {
 
 string JoinPath(const string& dirname, const string& basename) {
 #ifdef _WIN32
-    static const char separator = '\\';
+  static const char separator = '\\';
 #else
-    static const char separator = '/';
+  static const char separator = '/';
 #endif  // _WIN32
 
   if ((!basename.empty() && basename[0] == separator) || dirname.empty()) {
@@ -490,42 +527,32 @@ template <typename Model, int num_parameters>
 CostFunction* CreateCostFunction(const Matrix& predictor,
                                  const Matrix& response,
                                  const int num_observations) {
-  Model* model =
-      new Model(predictor.data(), response.data(), num_observations);
-  ceres::CostFunction* cost_function = NULL;
-  if (FLAGS_use_numeric_diff) {
+  auto* model = new Model(predictor.data(), response.data(), num_observations);
+  ceres::CostFunction* cost_function = nullptr;
+  if (CERES_GET_FLAG(FLAGS_use_numeric_diff)) {
     ceres::NumericDiffOptions options;
     SetNumericDiffOptions(&options);
-    if (FLAGS_numeric_diff_method == "central") {
+    if (CERES_GET_FLAG(FLAGS_numeric_diff_method) == "central") {
       cost_function = new NumericDiffCostFunction<Model,
                                                   ceres::CENTRAL,
                                                   ceres::DYNAMIC,
                                                   num_parameters>(
-          model,
-          ceres::TAKE_OWNERSHIP,
-          num_observations,
-          options);
-    } else if (FLAGS_numeric_diff_method == "forward") {
+          model, ceres::TAKE_OWNERSHIP, num_observations, options);
+    } else if (CERES_GET_FLAG(FLAGS_numeric_diff_method) == "forward") {
       cost_function = new NumericDiffCostFunction<Model,
                                                   ceres::FORWARD,
                                                   ceres::DYNAMIC,
                                                   num_parameters>(
-          model,
-          ceres::TAKE_OWNERSHIP,
-          num_observations,
-          options);
-    } else if (FLAGS_numeric_diff_method == "ridders") {
+          model, ceres::TAKE_OWNERSHIP, num_observations, options);
+    } else if (CERES_GET_FLAG(FLAGS_numeric_diff_method) == "ridders") {
       cost_function = new NumericDiffCostFunction<Model,
                                                   ceres::RIDDERS,
                                                   ceres::DYNAMIC,
                                                   num_parameters>(
-          model,
-          ceres::TAKE_OWNERSHIP,
-          num_observations,
-          options);
+          model, ceres::TAKE_OWNERSHIP, num_observations, options);
     } else {
       LOG(ERROR) << "Invalid numeric diff method specified";
-      return 0;
+      return nullptr;
     }
   } else {
     cost_function =
@@ -557,7 +584,8 @@ double ComputeLRE(const Matrix& expected, const Matrix& actual) {
 
 template <typename Model, int num_parameters>
 int RegressionDriver(const string& filename) {
-  NISTProblem nist_problem(JoinPath(FLAGS_nist_data_dir, filename));
+  NISTProblem nist_problem(
+      JoinPath(CERES_GET_FLAG(FLAGS_nist_data_dir), filename));
   CHECK_EQ(num_parameters, nist_problem.num_parameters());
 
   Matrix predictor = nist_problem.predictor();
@@ -571,15 +599,17 @@ int RegressionDriver(const string& filename) {
   int num_success = 0;
   for (int start = 0; start < nist_problem.num_starts(); ++start) {
     Matrix initial_parameters = nist_problem.initial_parameters(start);
-    ceres::CostFunction* cost_function = CreateCostFunction<Model, num_parameters>(
-        predictor, response,  nist_problem.num_observations());
+    ceres::CostFunction* cost_function =
+        CreateCostFunction<Model, num_parameters>(
+            predictor, response, nist_problem.num_observations());
 
     double initial_cost;
     double final_cost;
 
-    if (!FLAGS_use_tiny_solver) {
+    if (!CERES_GET_FLAG(FLAGS_use_tiny_solver)) {
       ceres::Problem problem;
-      problem.AddResidualBlock(cost_function, NULL, initial_parameters.data());
+      problem.AddResidualBlock(
+          cost_function, nullptr, initial_parameters.data());
       ceres::Solver::Summary summary;
       ceres::Solver::Options options;
       SetMinimizerOptions(&options);
@@ -589,15 +619,15 @@ int RegressionDriver(const string& filename) {
     } else {
       ceres::TinySolverCostFunctionAdapter<Eigen::Dynamic, num_parameters> cfa(
           *cost_function);
-      typedef ceres::TinySolver<
-          ceres::TinySolverCostFunctionAdapter<Eigen::Dynamic, num_parameters> >
-          Solver;
+      using Solver = ceres::TinySolver<
+          ceres::TinySolverCostFunctionAdapter<Eigen::Dynamic, num_parameters>>;
       Solver solver;
-      solver.options.max_num_iterations = FLAGS_num_iterations;
+      solver.options.max_num_iterations = CERES_GET_FLAG(FLAGS_num_iterations);
       solver.options.gradient_tolerance =
           std::numeric_limits<double>::epsilon();
       solver.options.parameter_tolerance =
           std::numeric_limits<double>::epsilon();
+      solver.options.function_tolerance = 0.0;
 
       Eigen::Matrix<double, num_parameters, 1> x;
       x = initial_parameters.transpose();
@@ -608,8 +638,8 @@ int RegressionDriver(const string& filename) {
       delete cost_function;
     }
 
-    const double log_relative_error = ComputeLRE(nist_problem.final_parameters(),
-                                                 initial_parameters);
+    const double log_relative_error =
+        ComputeLRE(nist_problem.final_parameters(), initial_parameters);
     const int kMinNumMatchingDigits = 4;
     if (log_relative_error > kMinNumMatchingDigits) {
       ++num_success;
@@ -628,9 +658,8 @@ int RegressionDriver(const string& filename) {
   return num_success;
 }
 
-
 void SolveNISTProblems() {
-  if (FLAGS_nist_data_dir.empty()) {
+  if (CERES_GET_FLAG(FLAGS_nist_data_dir).empty()) {
     LOG(FATAL) << "Must specify the directory containing the NIST problems";
   }
 
@@ -678,11 +707,11 @@ void SolveNISTProblems() {
        << "/54\n";
 }
 
-}  // namespace examples
-}  // namespace ceres
+}  // namespace
+}  // namespace ceres::examples
 
 int main(int argc, char** argv) {
-  CERES_GFLAGS_NAMESPACE::ParseCommandLineFlags(&argc, &argv, true);
+  GFLAGS_NAMESPACE::ParseCommandLineFlags(&argc, &argv, true);
   google::InitGoogleLogging(argv[0]);
   ceres::examples::SolveNISTProblems();
   return 0;

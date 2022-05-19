@@ -28,10 +28,12 @@
 //
 // Author: sameeragarwal@google.com (Sameer Agarwal)
 
-#include <vector>
-#include "gtest/gtest.h"
 #include "ceres/block_random_access_dense_matrix.h"
+
+#include <vector>
+
 #include "ceres/internal/eigen.h"
+#include "gtest/gtest.h"
 
 namespace ceres {
 namespace internal {
@@ -54,10 +56,9 @@ TEST(BlockRandomAccessDenseMatrix, GetCell) {
       int col;
       int row_stride;
       int col_stride;
-      CellInfo* cell =
-          m.GetCell(i, j, &row, &col, &row_stride, &col_stride);
+      CellInfo* cell = m.GetCell(i, j, &row, &col, &row_stride, &col_stride);
 
-      EXPECT_TRUE(cell != NULL);
+      EXPECT_TRUE(cell != nullptr);
       EXPECT_EQ(row, row_idx);
       EXPECT_EQ(col, col_idx);
       EXPECT_EQ(row_stride, 3 + 4 + 5);
@@ -84,11 +85,10 @@ TEST(BlockRandomAccessDenseMatrix, WriteCell) {
       int col;
       int row_stride;
       int col_stride;
-      CellInfo* cell = m.GetCell(
-          i, j, &row, &col, &row_stride, &col_stride);
-      MatrixRef(cell->values, row_stride, col_stride).block(
-          row, col, blocks[i], blocks[j]) =
-          (i+1) * (j+1) * Matrix::Ones(blocks[i], blocks[j]);
+      CellInfo* cell = m.GetCell(i, j, &row, &col, &row_stride, &col_stride);
+      MatrixRef(cell->values, row_stride, col_stride)
+          .block(row, col, blocks[i], blocks[j]) =
+          (i + 1) * (j + 1) * Matrix::Ones(blocks[i], blocks[j]);
     }
   }
 

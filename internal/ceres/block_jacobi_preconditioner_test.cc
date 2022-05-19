@@ -32,31 +32,33 @@
 
 #include <memory>
 #include <vector>
-#include "ceres/block_random_access_diagonal_matrix.h"
-#include "ceres/linear_least_squares_problems.h"
-#include "ceres/block_sparse_matrix.h"
-#include "gtest/gtest.h"
+
 #include "Eigen/Dense"
+#include "ceres/block_random_access_diagonal_matrix.h"
+#include "ceres/block_sparse_matrix.h"
+#include "ceres/linear_least_squares_problems.h"
+#include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
-
+namespace ceres::internal {
 
 class BlockJacobiPreconditionerTest : public ::testing::Test {
  protected:
   void SetUpFromProblemId(int problem_id) {
-    std::unique_ptr<LinearLeastSquaresProblem> problem(
-        CreateLinearLeastSquaresProblemFromId(problem_id));
+    std::unique_ptr<LinearLeastSquaresProblem> problem =
+        CreateLinearLeastSquaresProblemFromId(problem_id);
 
-    CHECK_NOTNULL(problem.get());
+    CHECK(problem != nullptr);
     A.reset(down_cast<BlockSparseMatrix*>(problem->A.release()));
-    D.reset(problem->D.release());
+    D = std::move(problem->D);
 
     Matrix dense_a;
     A->ToDenseMatrix(&dense_a);
     dense_ata = dense_a.transpose() * dense_a;
     dense_ata += VectorRef(D.get(), A->num_cols())
-        .array().square().matrix().asDiagonal();
+                     .array()
+                     .square()
+                     .matrix()
+                     .asDiagonal();
   }
 
   void VerifyDiagonalBlocks(const int problem_id) {
@@ -64,8 +66,7 @@ class BlockJacobiPreconditionerTest : public ::testing::Test {
 
     BlockJacobiPreconditioner pre(*A);
     pre.Update(*A, D.get());
-    BlockRandomAccessDiagonalMatrix* m =
-        const_cast<BlockRandomAccessDiagonalMatrix*>(&pre.matrix());
+    auto* m = const_cast<BlockRandomAccessDiagonalMatrix*>(&pre.matrix());
     EXPECT_EQ(m->num_rows(), A->num_cols());
     EXPECT_EQ(m->num_cols(), A->num_cols());
 
@@ -73,17 +74,14 @@ class BlockJacobiPreconditionerTest : public ::testing::Test {
     for (int i = 0; i < bs->cols.size(); ++i) {
       const int block_size = bs->cols[i].size;
       int r, c, row_stride, col_stride;
-      CellInfo* cell_info = m->GetCell(i, i,
-                                       &r, &c,
-                                       &row_stride, &col_stride);
+      CellInfo* cell_info = m->GetCell(i, i, &r, &c, &row_stride, &col_stride);
       MatrixRef m(cell_info->values, row_stride, col_stride);
       Matrix actual_block_inverse = m.block(r, c, block_size, block_size);
-      Matrix expected_block = dense_ata.block(bs->cols[i].position,
-                                              bs->cols[i].position,
-                                              block_size,
-                                              block_size);
+      Matrix expected_block = dense_ata.block(
+          bs->cols[i].position, bs->cols[i].position, block_size, block_size);
       const double residual = (actual_block_inverse * expected_block -
-                               Matrix::Identity(block_size, block_size)).norm();
+                               Matrix::Identity(block_size, block_size))
+                                  .norm();
       EXPECT_NEAR(residual, 0.0, 1e-12) << "Block: " << i;
     }
   }
@@ -93,13 +91,8 @@ class BlockJacobiPreconditionerTest : public ::testing::Test {
   Matrix dense_ata;
 };
 
-TEST_F(BlockJacobiPreconditionerTest, SmallProblem) {
-  VerifyDiagonalBlocks(2);
-}
+TEST_F(BlockJacobiPreconditionerTest, SmallProblem) { VerifyDiagonalBlocks(2); }
 
-TEST_F(BlockJacobiPreconditionerTest, LargeProblem) {
-  VerifyDiagonalBlocks(3);
-}
+TEST_F(BlockJacobiPreconditionerTest, LargeProblem) { VerifyDiagonalBlocks(3); }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

@@ -34,17 +34,17 @@
 #ifndef CERES_INTERNAL_CONJUGATE_GRADIENTS_SOLVER_H_
 #define CERES_INTERNAL_CONJUGATE_GRADIENTS_SOLVER_H_
 
+#include "ceres/internal/disable_warnings.h"
+#include "ceres/internal/export.h"
 #include "ceres/linear_solver.h"
-#include "ceres/internal/macros.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 class LinearOperator;
 
 // This class implements the now classical Conjugate Gradients
-// algorithm of Hestenes & Stiefel for solving postive semidefinite
-// linear sytems. Optionally it can use a preconditioner also to
+// algorithm of Hestenes & Stiefel for solving positive semidefinite
+// linear systems. Optionally it can use a preconditioner also to
 // reduce the condition number of the linear system and improve the
 // convergence rate. Modern references for Conjugate Gradients are the
 // books by Yousef Saad and Trefethen & Bau. This implementation of CG
@@ -55,20 +55,20 @@ class LinearOperator;
 // For more details see the documentation for
 // LinearSolver::PerSolveOptions::r_tolerance and
 // LinearSolver::PerSolveOptions::q_tolerance in linear_solver.h.
-class ConjugateGradientsSolver : public LinearSolver {
+class CERES_NO_EXPORT ConjugateGradientsSolver final : public LinearSolver {
  public:
-  explicit ConjugateGradientsSolver(const LinearSolver::Options& options);
-  virtual Summary Solve(LinearOperator* A,
-                        const double* b,
-                        const LinearSolver::PerSolveOptions& per_solve_options,
-                        double* x);
+  explicit ConjugateGradientsSolver(LinearSolver::Options options);
+  Summary Solve(LinearOperator* A,
+                const double* b,
+                const LinearSolver::PerSolveOptions& per_solve_options,
+                double* x) final;
 
  private:
   const LinearSolver::Options options_;
-  CERES_DISALLOW_COPY_AND_ASSIGN(ConjugateGradientsSolver);
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
+
+#include "ceres/internal/reenable_warnings.h"
 
 #endif  // CERES_INTERNAL_CONJUGATE_GRADIENTS_SOLVER_H_

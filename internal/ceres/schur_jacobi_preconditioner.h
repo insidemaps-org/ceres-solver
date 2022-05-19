@@ -43,11 +43,11 @@
 #include <utility>
 #include <vector>
 
-#include "ceres/internal/macros.h"
+#include "ceres/internal/disable_warnings.h"
+#include "ceres/internal/export.h"
 #include "ceres/preconditioner.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 class BlockRandomAccessDiagonalMatrix;
 class BlockSparseMatrix;
@@ -70,10 +70,11 @@ class SchurEliminatorBase;
 //   options.elimination_groups.push_back(num_cameras);
 //   SchurJacobiPreconditioner preconditioner(
 //      *A.block_structure(), options);
-//   preconditioner.Update(A, NULL);
+//   preconditioner.Update(A, nullptr);
 //   preconditioner.RightMultiply(x, y);
 //
-class SchurJacobiPreconditioner : public BlockSparseMatrixPreconditioner {
+class CERES_NO_EXPORT SchurJacobiPreconditioner
+    : public BlockSparseMatrixPreconditioner {
  public:
   // Initialize the symbolic structure of the preconditioner. bs is
   // the block structure of the linear system to be solved. It is used
@@ -82,25 +83,28 @@ class SchurJacobiPreconditioner : public BlockSparseMatrixPreconditioner {
   // It has the same structural requirement as other Schur complement
   // based solvers. Please see schur_eliminator.h for more details.
   SchurJacobiPreconditioner(const CompressedRowBlockStructure& bs,
-                            const Preconditioner::Options& options);
-  virtual ~SchurJacobiPreconditioner();
+                            Preconditioner::Options options);
+  SchurJacobiPreconditioner(const SchurJacobiPreconditioner&) = delete;
+  void operator=(const SchurJacobiPreconditioner&) = delete;
+
+  ~SchurJacobiPreconditioner() override;
 
   // Preconditioner interface.
-  virtual void RightMultiply(const double* x, double* y) const;
-  virtual int num_rows() const;
+  void RightMultiply(const double* x, double* y) const final;
+  int num_rows() const final;
 
  private:
   void InitEliminator(const CompressedRowBlockStructure& bs);
-  virtual bool UpdateImpl(const BlockSparseMatrix& A, const double* D);
+  bool UpdateImpl(const BlockSparseMatrix& A, const double* D) final;
 
   Preconditioner::Options options_;
   std::unique_ptr<SchurEliminatorBase> eliminator_;
   // Preconditioner matrix.
   std::unique_ptr<BlockRandomAccessDiagonalMatrix> m_;
-  CERES_DISALLOW_COPY_AND_ASSIGN(SchurJacobiPreconditioner);
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
+
+#include "ceres/internal/reenable_warnings.h"
 
 #endif  // CERES_INTERNAL_SCHUR_JACOBI_PRECONDITIONER_H_

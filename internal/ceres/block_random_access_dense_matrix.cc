@@ -31,11 +31,11 @@
 #include "ceres/block_random_access_dense_matrix.h"
 
 #include <vector>
+
 #include "ceres/internal/eigen.h"
 #include "glog/logging.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 BlockRandomAccessDenseMatrix::BlockRandomAccessDenseMatrix(
     const std::vector<int>& blocks) {
@@ -47,9 +47,9 @@ BlockRandomAccessDenseMatrix::BlockRandomAccessDenseMatrix(
     num_rows_ += blocks[i];
   }
 
-  values_.reset(new double[num_rows_ * num_rows_]);
+  values_ = std::make_unique<double[]>(num_rows_ * num_rows_);
 
-  cell_infos_.reset(new CellInfo[num_blocks * num_blocks]);
+  cell_infos_ = std::make_unique<CellInfo[]>(num_blocks * num_blocks);
   for (int i = 0; i < num_blocks * num_blocks; ++i) {
     cell_infos_[i].values = values_.get();
   }
@@ -59,8 +59,7 @@ BlockRandomAccessDenseMatrix::BlockRandomAccessDenseMatrix(
 
 // Assume that the user does not hold any locks on any cell blocks
 // when they are calling SetZero.
-BlockRandomAccessDenseMatrix::~BlockRandomAccessDenseMatrix() {
-}
+BlockRandomAccessDenseMatrix::~BlockRandomAccessDenseMatrix() = default;
 
 CellInfo* BlockRandomAccessDenseMatrix::GetCell(const int row_block_id,
                                                 const int col_block_id,
@@ -83,5 +82,4 @@ void BlockRandomAccessDenseMatrix::SetZero() {
   }
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

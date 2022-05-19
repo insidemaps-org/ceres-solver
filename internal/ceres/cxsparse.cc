@@ -7,7 +7,7 @@
 //
 // * Redistributions of source code must retain the above copyright notice,
 //   this list of conditions and the following disclaimer.
-// * Redistributions in binary form must reproduce the above copyright notice,
+// * Redistributions in binary form must rep%roduce the above copyright notice,
 //   this list of conditions and the following disclaimer in the documentation
 //   and/or other materials provided with the distribution.
 // * Neither the name of Google Inc. nor the names of its contributors may be
@@ -29,26 +29,25 @@
 // Author: strandmark@google.com (Petter Strandmark)
 
 // This include must come before any #ifndef check on Ceres compile options.
-#include "ceres/internal/port.h"
+#include "ceres/internal/config.h"
 
 #ifndef CERES_NO_CXSPARSE
 
-#include "ceres/cxsparse.h"
-
+#include <memory>
 #include <string>
 #include <vector>
 
 #include "ceres/compressed_col_sparse_matrix_utils.h"
 #include "ceres/compressed_row_sparse_matrix.h"
+#include "ceres/cxsparse.h"
 #include "ceres/triplet_sparse_matrix.h"
 #include "glog/logging.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 using std::vector;
 
-CXSparse::CXSparse() : scratch_(NULL), scratch_size_(0) {}
+CXSparse::CXSparse() : scratch_(nullptr), scratch_size_(0) {}
 
 CXSparse::~CXSparse() {
   if (scratch_size_ > 0) {
@@ -117,7 +116,7 @@ cs_dis* CXSparse::BlockAnalyzeCholesky(cs_di* A,
   block_matrix.nzmax = block_rows.size();
   block_matrix.p = &block_cols[0];
   block_matrix.i = &block_rows[0];
-  block_matrix.x = NULL;
+  block_matrix.x = nullptr;
 
   int* ordering = cs_amd(1, &block_matrix);
   vector<int> block_ordering(num_row_blocks, -1);
@@ -127,7 +126,7 @@ cs_dis* CXSparse::BlockAnalyzeCholesky(cs_di* A,
   vector<int> scalar_ordering;
   BlockOrderingToScalarOrdering(row_blocks, block_ordering, &scalar_ordering);
 
-  cs_dis* symbolic_factor =
+  auto* symbolic_factor =
       reinterpret_cast<cs_dis*>(cs_calloc(1, sizeof(cs_dis)));
   symbolic_factor->pinv = cs_pinv(&scalar_ordering[0], A->n);
   cs* permuted_A = cs_symperm(A, symbolic_factor->pinv, 0);
@@ -139,7 +138,7 @@ cs_dis* CXSparse::BlockAnalyzeCholesky(cs_di* A,
   cs_free(postordering);
   cs_spfree(permuted_A);
 
-  symbolic_factor->cp = (int*)cs_malloc(A->n + 1, sizeof(int));
+  symbolic_factor->cp = static_cast<int*>(cs_malloc(A->n + 1, sizeof(int)));
   symbolic_factor->lnz = cs_cumsum(symbolic_factor->cp, column_counts, A->n);
   symbolic_factor->unz = symbolic_factor->lnz;
 
@@ -147,7 +146,7 @@ cs_dis* CXSparse::BlockAnalyzeCholesky(cs_di* A,
 
   if (symbolic_factor->lnz < 0) {
     cs_sfree(symbolic_factor);
-    symbolic_factor = NULL;
+    symbolic_factor = nullptr;
   }
 
   return symbolic_factor;
@@ -196,18 +195,19 @@ void CXSparse::Free(cs_dis* symbolic_factor) { cs_di_sfree(symbolic_factor); }
 
 void CXSparse::Free(csn* numeric_factor) { cs_di_nfree(numeric_factor); }
 
-CXSparseCholesky* CXSparseCholesky::Create(const OrderingType ordering_type) {
-  return new CXSparseCholesky(ordering_type);
+std::unique_ptr<SparseCholesky> CXSparseCholesky::Create(
+    const OrderingType ordering_type) {
+  return std::unique_ptr<SparseCholesky>(new CXSparseCholesky(ordering_type));
 }
 
 CompressedRowSparseMatrix::StorageType CXSparseCholesky::StorageType() const {
-  return CompressedRowSparseMatrix::LOWER_TRIANGULAR;
+  return CompressedRowSparseMatrix::StorageType::LOWER_TRIANGULAR;
 }
 
 CXSparseCholesky::CXSparseCholesky(const OrderingType ordering_type)
     : ordering_type_(ordering_type),
-      symbolic_factor_(NULL),
-      numeric_factor_(NULL) {}
+      symbolic_factor_(nullptr),
+      numeric_factor_(nullptr) {}
 
 CXSparseCholesky::~CXSparseCholesky() {
   FreeSymbolicFactorization();
@@ -217,15 +217,15 @@ CXSparseCholesky::~CXSparseCholesky() {
 LinearSolverTerminationType CXSparseCholesky::Factorize(
     CompressedRowSparseMatrix* lhs, std::string* message) {
   CHECK_EQ(lhs->storage_type(), StorageType());
-  if (lhs == NULL) {
-    *message = "Failure: Input lhs is NULL.";
-    return LINEAR_SOLVER_FATAL_ERROR;
+  if (lhs == nullptr) {
+    *message = "Failure: Input lhs is nullptr.";
+    return LinearSolverTerminationType::FATAL_ERROR;
   }
 
   cs_di cs_lhs = cs_.CreateSparseMatrixTransposeView(lhs);
 
-  if (symbolic_factor_ == NULL) {
-    if (ordering_type_ == NATURAL) {
+  if (symbolic_factor_ == nullptr) {
+    if (ordering_type_ == OrderingType::NATURAL) {
       symbolic_factor_ = cs_.AnalyzeCholeskyWithNaturalOrdering(&cs_lhs);
     } else {
       if (!lhs->col_blocks().empty() && !(lhs->row_blocks().empty())) {
@@ -236,48 +236,47 @@ LinearSolverTerminationType CXSparseCholesky::Factorize(
       }
     }
 
-    if (symbolic_factor_ == NULL) {
+    if (symbolic_factor_ == nullptr) {
       *message = "CXSparse Failure : Symbolic factorization failed.";
-      return LINEAR_SOLVER_FATAL_ERROR;
+      return LinearSolverTerminationType::FATAL_ERROR;
     }
   }
 
   FreeNumericFactorization();
   numeric_factor_ = cs_.Cholesky(&cs_lhs, symbolic_factor_);
-  if (numeric_factor_ == NULL) {
+  if (numeric_factor_ == nullptr) {
     *message = "CXSparse Failure : Numeric factorization failed.";
-    return LINEAR_SOLVER_FAILURE;
+    return LinearSolverTerminationType::FAILURE;
   }
 
-  return LINEAR_SOLVER_SUCCESS;
+  return LinearSolverTerminationType::SUCCESS;
 }
 
 LinearSolverTerminationType CXSparseCholesky::Solve(const double* rhs,
                                                     double* solution,
                                                     std::string* message) {
-  CHECK(numeric_factor_ != NULL)
+  CHECK(numeric_factor_ != nullptr)
       << "Solve called without a call to Factorize first.";
   const int num_cols = numeric_factor_->L->n;
   memcpy(solution, rhs, num_cols * sizeof(*solution));
   cs_.Solve(symbolic_factor_, numeric_factor_, solution);
-  return LINEAR_SOLVER_SUCCESS;
+  return LinearSolverTerminationType::SUCCESS;
 }
 
 void CXSparseCholesky::FreeSymbolicFactorization() {
-  if (symbolic_factor_ != NULL) {
+  if (symbolic_factor_ != nullptr) {
     cs_.Free(symbolic_factor_);
-    symbolic_factor_ = NULL;
+    symbolic_factor_ = nullptr;
   }
 }
 
 void CXSparseCholesky::FreeNumericFactorization() {
-  if (numeric_factor_ != NULL) {
+  if (numeric_factor_ != nullptr) {
     cs_.Free(numeric_factor_);
-    numeric_factor_ = NULL;
+    numeric_factor_ = nullptr;
   }
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_NO_CXSPARSE

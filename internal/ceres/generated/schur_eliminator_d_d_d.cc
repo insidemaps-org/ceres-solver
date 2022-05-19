@@ -39,14 +39,10 @@
 //
 // This file is generated using generate_template_specializations.py.
 
-
 #include "ceres/schur_eliminator_impl.h"
-#include "ceres/internal/eigen.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 template class SchurEliminator<Eigen::Dynamic, Eigen::Dynamic, Eigen::Dynamic>;
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

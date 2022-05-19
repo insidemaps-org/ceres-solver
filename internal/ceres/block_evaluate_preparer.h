@@ -36,15 +36,15 @@
 #ifndef CERES_INTERNAL_BLOCK_EVALUATE_PREPARER_H_
 #define CERES_INTERNAL_BLOCK_EVALUATE_PREPARER_H_
 
+#include "ceres/internal/export.h"
 #include "ceres/scratch_evaluate_preparer.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 class ResidualBlock;
 class SparseMatrix;
 
-class BlockEvaluatePreparer {
+class CERES_NO_EXPORT BlockEvaluatePreparer {
  public:
   // Using Init() instead of a constructor allows for allocating this structure
   // with new[]. This is because C++ doesn't allow passing arguments to objects
@@ -71,7 +71,6 @@ class BlockEvaluatePreparer {
   ScratchEvaluatePreparer scratch_evaluate_preparer_;
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_BLOCK_EVALUATE_PREPARER_H_

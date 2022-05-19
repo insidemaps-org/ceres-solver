@@ -1,5 +1,6 @@
-
 .. default-domain:: cpp
+
+.. highlight:: c++
 
 .. cpp:namespace:: ceres
 
@@ -58,8 +59,8 @@ the step :math:`\Delta x` is controlled, non-linear optimization
 algorithms can be divided into two major categories [NocedalWright]_.
 
 1. **Trust Region** The trust region approach approximates the
-   objective function using using a model function (often a quadratic)
-   over a subset of the search space known as the trust region. If the
+   objective function using a model function (often a quadratic) over
+   a subset of the search space known as the trust region. If the
    model function succeeds in minimizing the true objective function
    the trust region is expanded; conversely, otherwise it is
    contracted and the model optimization problem is solved again.
@@ -166,10 +167,10 @@ Before going further, let us make some notational simplifications. We
 will assume that the matrix :math:`\frac{1}{\sqrt{\mu}} D` has been concatenated
 at the bottom of the matrix :math:`J` and similarly a vector of zeros
 has been added to the bottom of the vector :math:`f` and the rest of
-our discussion will be in terms of :math:`J` and :math:`f`, i.e, the
+our discussion will be in terms of :math:`J` and :math:`F`, i.e, the
 linear least squares problem.
 
-.. math:: \min_{\Delta x} \frac{1}{2} \|J(x)\Delta x + f(x)\|^2 .
+.. math:: \min_{\Delta x} \frac{1}{2} \|J(x)\Delta x + F(x)\|^2 .
    :label: simple
 
 For all but the smallest problems the solution of :eq:`simple` in
@@ -492,7 +493,7 @@ substantial savings in time and memory for large sparse
 problems. Ceres uses the sparse Cholesky factorization routines in
 Professor Tim Davis' ``SuiteSparse`` or ``CXSparse`` packages [Chen]_
 or the sparse Cholesky factorization algorithm in ``Eigen`` (which
-incidently is a port of the algorithm implemented inside ``CXSparse``)
+incidentally is a port of the algorithm implemented inside ``CXSparse``)
 
 .. _section-cgnr:
 
@@ -648,11 +649,11 @@ can be quite substantial.
      access to :math:`S` via its product with a vector, one way to
      evaluate :math:`Sx` is to observe that
 
-     .. math::  x_1 &= E^\top x
-     .. math::  x_2 &= C^{-1} x_1
-     .. math::  x_3 &= Ex_2\\
-     .. math::  x_4 &= Bx\\
-     .. math::   Sx &= x_4 - x_3
+     .. math::  x_1 &= E^\top x\\
+                x_2 &= C^{-1} x_1\\
+                x_3 &= Ex_2\\
+                x_4 &= Bx\\
+                Sx &= x_4 - x_3
         :label: schurtrick1
 
      Thus, we can run PCG on :math:`S` with the same computational
@@ -693,7 +694,7 @@ step algorithm.
 .. _section-preconditioner:
 
 Preconditioner
---------------
+==============
 
 The convergence rate of Conjugate Gradients for
 solving :eq:`normal` depends on the distribution of eigenvalues
@@ -726,34 +727,96 @@ expensive it is use. For example, Incomplete Cholesky factorization
 based preconditioners have much better convergence behavior than the
 Jacobi preconditioner, but are also much more expensive.
 
+For a survey of the state of the art in preconditioning linear least
+squares problems with general sparsity structure see [GouldScott]_.
+
+Ceres Solver comes with an number of preconditioners suited for
+problems with general sparsity as well as the special sparsity
+structure encountered in bundle adjustment problems.
+
+``JACOBI``
+----------
+
 The simplest of all preconditioners is the diagonal or Jacobi
 preconditioner, i.e., :math:`M=\operatorname{diag}(A)`, which for
 block structured matrices like :math:`H` can be generalized to the
-block Jacobi preconditioner. Ceres implements the block Jacobi
-preconditioner and refers to it as ``JACOBI``. When used with
-:ref:`section-cgnr` it refers to the block diagonal of :math:`H` and
-when used with :ref:`section-iterative_schur` it refers to the block
-diagonal of :math:`B` [Mandel]_.
+block Jacobi preconditioner. The ``JACOBI`` preconditioner in Ceres
+when used with :ref:`section-cgnr` refers to the block diagonal of
+:math:`H` and when used with :ref:`section-iterative_schur` refers to
+the block diagonal of :math:`B` [Mandel]_. For detailed performance
+data about the performance of ``JACOBI`` on bundle adjustment problems
+see [Agarwal]_.
+
+
+``SCHUR_JACOBI``
+----------------
 
 Another obvious choice for :ref:`section-iterative_schur` is the block
 diagonal of the Schur complement matrix :math:`S`, i.e, the block
-Jacobi preconditioner for :math:`S`. Ceres implements it and refers to
-is as the ``SCHUR_JACOBI`` preconditioner.
+Jacobi preconditioner for :math:`S`. In Ceres we refer to it as the
+``SCHUR_JACOBI`` preconditioner.  For detailed performance data about
+the performance of ``SCHUR_JACOBI`` on bundle adjustment problems see
+[Agarwal]_.
+
+
+``CLUSTER_JACOBI`` and ``CLUSTER_TRIDIAGONAL``
+----------------------------------------------
 
 For bundle adjustment problems arising in reconstruction from
 community photo collections, more effective preconditioners can be
 constructed by analyzing and exploiting the camera-point visibility
-structure of the scene [KushalAgarwal]_. Ceres implements the two
-visibility based preconditioners described by Kushal & Agarwal as
-``CLUSTER_JACOBI`` and ``CLUSTER_TRIDIAGONAL``. These are fairly new
-preconditioners and Ceres' implementation of them is in its early
-stages and is not as mature as the other preconditioners described
-above.
+structure of the scene.
+
+The key idea is to cluster the cameras based on the visibility
+structure of the scene. The similarity between a pair of cameras
+:math:`i` and :math:`j` is given by:
+
+  .. math:: S_{ij} = \frac{|V_i \cap V_j|}{|V_i| |V_j|}
+
+Here :math:`V_i` is the set of scene points visible in camera
+:math:`i`. This idea was first exploited by [KushalAgarwal]_ to create
+the ``CLUSTER_JACOBI`` and the ``CLUSTER_TRIDIAGONAL`` preconditioners
+which Ceres implements.
+
+The performance of these two preconditioners depends on the speed and
+clustering quality of the clustering algorithm used when building the
+preconditioner. In the original paper, [KushalAgarwal]_ used the
+Canonical Views algorithm [Simon]_, which while producing high quality
+clusterings can be quite expensive for large graphs. So, Ceres
+supports two visibility clustering algorithms - ``CANONICAL_VIEWS``
+and ``SINGLE_LINKAGE``. The former is as the name implies Canonical
+Views algorithm of [Simon]_. The latter is the the classic `Single
+Linkage Clustering
+<https://en.wikipedia.org/wiki/Single-linkage_clustering>`_
+algorithm. The choice of clustering algorithm is controlled by
+:member:`Solver::Options::visibility_clustering_type`.
+
+``SUBSET``
+----------
+
+This is a  preconditioner for problems with general  sparsity. Given a
+subset  of residual  blocks of  a problem,  it uses  the corresponding
+subset  of the  rows of  the  Jacobian to  construct a  preconditioner
+[Dellaert]_.
+
+Suppose the Jacobian :math:`J` has been horizontally partitioned as
+
+  .. math:: J = \begin{bmatrix} P \\ Q \end{bmatrix}
+
+Where, :math:`Q` is the set of rows corresponding to the residual
+blocks in
+:member:`Solver::Options::residual_blocks_for_subset_preconditioner`. The
+preconditioner is the matrix :math:`(Q^\top Q)^{-1}`.
+
+The efficacy of the preconditioner depends on how well the matrix
+:math:`Q` approximates :math:`J^\top J`, or how well the chosen
+residual blocks approximate the full problem.
+
 
 .. _section-ordering:
 
 Ordering
---------
+========
 
 The order in which variables are eliminated in a linear solver can
 have a significant of impact on the efficiency and accuracy of the
@@ -858,7 +921,7 @@ elimination group [LiSaad]_.
    Choices are ``ARMIJO`` and ``WOLFE`` (strong Wolfe conditions).
    Note that in order for the assumptions underlying the ``BFGS`` and
    ``LBFGS`` line search direction algorithms to be guaranteed to be
-   satisifed, the ``WOLFE`` line search should be used.
+   satisfied, the ``WOLFE`` line search should be used.
 
 .. member:: NonlinearConjugateGradientType Solver::Options::nonlinear_conjugate_gradient_type
 
@@ -991,6 +1054,11 @@ elimination group [LiSaad]_.
    Maximum number of trial step size iterations during each line
    search, if a step size satisfying the search conditions cannot be
    found within this number of trials, the line search will stop.
+
+   The minimum allowed value is 0 for trust region minimizer and 1
+   otherwise. If 0 is specified for the trust region minimizer, then
+   line search will not be used when solving constrained optimization
+   problems.
 
    As this is an 'artificial' constraint (one imposed by the user, not
    the underlying math), if ``WOLFE`` line search is being used, *and*
@@ -1125,7 +1193,7 @@ elimination group [LiSaad]_.
 
 .. member:: double Solver::Options::min_lm_diagonal
 
-   Default: ``1e6``
+   Default: ``1e-6``
 
    The ``LEVENBERG_MARQUARDT`` strategy, uses a diagonal matrix to
    regularize the trust region step. This is the lower bound on
@@ -1172,8 +1240,8 @@ elimination group [LiSaad]_.
 
    where :math:`\|\cdot\|_\infty` refers to the max norm, :math:`\Pi`
    is projection onto the bounds constraints and :math:`\boxplus` is
-   Plus operation for the overall local parameterization associated
-   with the parameter vector.
+   Plus operation for the overall manifold associated with the
+   parameter vector.
 
 .. member:: double Solver::Options::parameter_tolerance
 
@@ -1229,21 +1297,45 @@ elimination group [LiSaad]_.
    recommend that you try ``CANONICAL_VIEWS`` first and if it is too
    expensive try ``SINGLE_LINKAGE``.
 
+.. member:: std::unordered_set<ResidualBlockId> residual_blocks_for_subset_preconditioner
+
+   ``SUBSET`` preconditioner is a preconditioner for problems with
+   general sparsity. Given a subset of residual blocks of a problem,
+   it uses the corresponding subset of the rows of the Jacobian to
+   construct a preconditioner.
+
+   Suppose the Jacobian :math:`J` has been horizontally partitioned as
+
+       .. math:: J = \begin{bmatrix} P \\ Q \end{bmatrix}
+
+   Where, :math:`Q` is the set of rows corresponding to the residual
+   blocks in
+   :member:`Solver::Options::residual_blocks_for_subset_preconditioner`. The
+   preconditioner is the matrix :math:`(Q^\top Q)^{-1}`.
+
+   The efficacy of the preconditioner depends on how well the matrix
+   :math:`Q` approximates :math:`J^\top J`, or how well the chosen
+   residual blocks approximate the full problem.
+
+   If ``Solver::Options::preconditioner_type == SUBSET``, then
+   ``residual_blocks_for_subset_preconditioner`` must be non-empty.
+
 .. member:: DenseLinearAlgebraLibrary Solver::Options::dense_linear_algebra_library_type
 
    Default:``EIGEN``
 
    Ceres supports using multiple dense linear algebra libraries for
-   dense matrix factorizations. Currently ``EIGEN`` and ``LAPACK`` are
-   the valid choices. ``EIGEN`` is always available, ``LAPACK`` refers
-   to the system ``BLAS + LAPACK`` library which may or may not be
-   available.
+   dense matrix factorizations. Currently ``EIGEN``, ``LAPACK`` and
+   ``CUDA`` are the valid choices. ``EIGEN`` is always available,
+   ``LAPACK`` refers to the system ``BLAS + LAPACK`` library which may
+   or may not be available. ``CUDA`` refers to Nvidia's GPU based
+   dense linear algebra library which may or may not be available.
 
    This setting affects the ``DENSE_QR``, ``DENSE_NORMAL_CHOLESKY``
-   and ``DENSE_SCHUR`` solvers. For small to moderate sized probem
+   and ``DENSE_SCHUR`` solvers. For small to moderate sized problem
    ``EIGEN`` is a fine choice but for large problems, an optimized
-   ``LAPACK + BLAS`` implementation can make a substantial difference
-   in performance.
+   ``LAPACK + BLAS`` or ``CUDA`` implementation can make a substantial
+   difference in performance.
 
 .. member:: SparseLinearAlgebraLibrary Solver::Options::sparse_linear_algebra_library_type
 
@@ -1280,16 +1372,6 @@ elimination group [LiSaad]_.
    The upside is that you do not need to build and link to an external
    library to use ``EIGEN_SPARSE``.
 
-.. member:: int Solver::Options::num_linear_solver_threads
-
-   Default: ``-1``
-
-   **This field is deprecated, and is ignored by
-   Ceres. Solver::Options::num_threads controls threading for all
-   of Ceres Solver. This setting is scheduled to be removed in
-   1.15.0.**
-
-   Number of threads used by the linear solver.
 
 .. member:: shared_ptr<ParameterBlockOrdering> Solver::Options::linear_solver_ordering
 
@@ -1297,7 +1379,7 @@ elimination group [LiSaad]_.
 
    An instance of the ordering object informs the solver about the
    desired order in which parameter blocks should be eliminated by the
-   linear solvers. See section~\ref{sec:ordering`` for more details.
+   linear solvers.
 
    If ``NULL``, the solver is free to choose an ordering that it
    thinks is best.
@@ -1328,34 +1410,10 @@ elimination group [LiSaad]_.
    computed Schur complement. This can improve the performance of the
    ``ITERATIVE_SCHUR`` solver significantly.
 
-   .. NOTE:
+   .. NOTE::
 
      This option can only be used with the ``SCHUR_JACOBI``
      preconditioner.
-
-.. member:: bool Solver::Options::use_post_ordering
-
-   Default: ``false``
-
-   Sparse Cholesky factorization algorithms use a fill-reducing
-   ordering to permute the columns of the Jacobian matrix. There are
-   two ways of doing this.
-
-   1. Compute the Jacobian matrix in some order and then have the
-      factorization algorithm permute the columns of the Jacobian.
-
-   2. Compute the Jacobian with its columns already permuted.
-
-   The first option incurs a significant memory penalty. The
-   factorization algorithm has to make a copy of the permuted Jacobian
-   matrix, thus Ceres pre-permutes the columns of the Jacobian matrix
-   and generally speaking, there is no performance penalty for doing
-   so.
-
-   In some rare cases, it is worth using a more complicated reordering
-   algorithm which has slightly better runtime performance at the
-   expense of an extra copy of the Jacobian matrix. Setting
-   ``use_postordering`` to ``true`` enables this tradeoff.
 
 .. member:: bool Solver::Options::dynamic_sparsity
 
@@ -1372,6 +1430,36 @@ elimination group [LiSaad]_.
    likely lead to worse performance.
 
    This setting only affects the `SPARSE_NORMAL_CHOLESKY` solver.
+
+.. member:: bool Solver::Options::use_mixed_precision_solves
+
+   Default: ``false``
+
+   .. NOTE::
+
+     This feature is EXPERIMENTAL and under development, use at your
+     own risk!
+
+   If true, the Gauss-Newton matrix is computed in *double* precision, but
+   its factorization is computed in **single** precision. This can result in
+   significant time and memory savings at the cost of some accuracy in the
+   Gauss-Newton step. Iterative refinement is used to recover some
+   of this accuracy back.
+
+   If ``use_mixed_precision_solves`` is true, we recommend setting
+   ``max_num_refinement_iterations`` to 2-3.
+
+   This option is currently only available if
+   ``sparse_linear_algebra_library_type`` is ``EIGEN_SPARSE`` or
+   ``ACCELERATE_SPARSE``, and ``linear_solver_type`` is
+   ``SPARSE_NORMAL_CHOLESKY`` or ``SPARSE_SCHUR``.
+
+.. member:: int Solver::Options::max_num_refinement_iterations
+
+   Default: ``0``
+
+   Number steps of the iterative refinement process to run when
+   computing the Gauss-Newton step, see ``use_mixed_precision_solves``.
 
 .. member:: int Solver::Options::min_linear_solver_iterations
 
@@ -1417,6 +1505,10 @@ elimination group [LiSaad]_.
    algorithm. Essentially this amounts to doing a further optimization
    on each Newton/Trust region step using a coordinate descent
    algorithm.  For more details, see :ref:`section-inner-iterations`.
+
+   **Note** Inner iterations cannot be used with :class:`Problem`
+   objects that have an :class:`EvaluationCallback` associated with
+   them.
 
 .. member:: double Solver::Options::inner_iteration_tolerance
 
@@ -1569,7 +1661,7 @@ elimination group [LiSaad]_.
 
 .. member:: double Solver::Options::gradient_check_relative_precision
 
-   Default: ``1e08``
+   Default: ``1e-8``
 
    Precision to check for in the gradient checker. If the relative
    difference between an element in a Jacobian exceeds this number,
@@ -1608,63 +1700,40 @@ elimination group [LiSaad]_.
    which break this finite difference heuristic, but they do not come
    up often in practice.
 
-.. member:: vector<IterationCallback> Solver::Options::callbacks
-
-   Callbacks that are executed at the end of each iteration of the
-   :class:`Minimizer`. They are executed in the order that they are
-   specified in this vector. By default, parameter blocks are updated
-   only at the end of the optimization, i.e., when the
-   :class:`Minimizer` terminates. This behavior is controlled by
-   :member:`Solver::Options::update_state_every_iteration`. If the user
-   wishes to have access to the updated parameter blocks when his/her
-   callbacks are executed, then set
-   :member:`Solver::Options::update_state_every_iteration` to true.
-
-   The solver does NOT take ownership of these pointers.
-
 .. member:: bool Solver::Options::update_state_every_iteration
 
    Default: ``false``
 
-   If true, the user's parameter blocks are updated at the end of
-   every Minimizer iteration, otherwise they are updated when the
-   Minimizer terminates. This is useful if, for example, the user
-   wishes to visualize the state of the optimization every iteration
-   (in combination with an IterationCallback).
+   If ``update_state_every_iteration`` is ``true``, then Ceres Solver
+   will guarantee that at the end of every iteration and before any
+   user :class:`IterationCallback` is called, the parameter blocks are
+   updated to the current best solution found by the solver. Thus the
+   IterationCallback can inspect the values of the parameter blocks
+   for purposes of computation, visualization or termination.
 
-   **Note**: If :member:`Solver::Options::evaluation_callback` is set,
-   then the behaviour of this flag is slightly different in each case:
+   If ``update_state_every_iteration`` is ``false`` then there is no
+   such guarantee, and user provided :class:`IterationCallback` s
+   should not expect to look at the parameter blocks and interpret
+   their values.
 
-   1. If :member:`Solver::Options::update_state_every_iteration` is
-      false, then the user's state is changed at every residual and/or
-      jacobian evaluation. Any user provided IterationCallbacks should
-      **not** inspect and depend on the user visible state while the
-      solver is running, since they it have undefined contents.
+.. member:: vector<IterationCallback> Solver::Options::callbacks
 
-   2. If :member:`Solver::Options::update_state_every_iteration` is
-      false, then the user's state is changed at every residual and/or
-      jacobian evaluation, BUT the solver will ensure that before the
-      user provided `IterationCallbacks` are called, the user visible
-      state will be updated to the current best point found by the
-      solver.
+   Callbacks that are executed at the end of each iteration of the
+   :class:`Minimizer`. They are executed in the order that they are
+   specified in this vector.
 
-.. member:: bool Solver::Options::evaluation_callback
+   By default, parameter blocks are updated only at the end of the
+   optimization, i.e., when the :class:`Minimizer` terminates. This
+   means that by default, if an :class:`IterationCallback` inspects
+   the parameter blocks, they will not see them changing in the course
+   of the optimization.
 
-   Default: ``NULL``
+   To tell Ceres to update the parameter blocks at the end of each
+   iteration and before calling the user's callback, set
+   :member:`Solver::Options::update_state_every_iteration` to
+   ``true``.
 
-   If non-``NULL``, gets notified when Ceres is about to evaluate the
-   residuals and/or Jacobians. This enables sharing computation between
-   residuals, which in some cases is important for efficient cost
-   evaluation. See :class:`EvaluationCallback` for details.
-
-   **Note**: Evaluation callbacks are incompatible with inner
-   iterations.
-
-   **Warning**: This interacts with
-   :member:`Solver::Options::update_state_every_iteration`. See the
-   documentation for that option for more details.
-
-   The solver does `not`  take ownership of the pointer.
+   The solver does NOT take ownership of these pointers.
 
 :class:`ParameterBlockOrdering`
 ===============================
@@ -1725,63 +1794,7 @@ elimination group [LiSaad]_.
 
    Number of groups with one or more elements.
 
-:class:`EvaluationCallback`
-===========================
-
-.. class:: EvaluationCallback
-
-   Interface for receiving callbacks before Ceres evaluates residuals or
-   Jacobians:
-
-   .. code-block:: c++
-
-      class EvaluationCallback {
-       public:
-        virtual ~EvaluationCallback() {}
-        virtual void PrepareForEvaluation()(bool evaluate_jacobians
-                                            bool new_evaluation_point) = 0;
-      };
-
-   ``PrepareForEvaluation()`` is called before Ceres requests residuals
-   or jacobians for a given setting of the parameters. User parameters
-   (the double* values provided to the cost functions) are fixed until
-   the next call to ``PrepareForEvaluation()``. If
-   ``new_evaluation_point == true``, then this is a new point that is
-   different from the last evaluated point. Otherwise, it is the same
-   point that was evaluated previously (either jacobian or residual) and
-   the user can use cached results from previous evaluations. If
-   ``evaluate_jacobians`` is true, then Ceres will request jacobians in
-   the upcoming cost evaluation.
-
-   Using this callback interface, Ceres can notify you when it is about
-   to evaluate the residuals or jacobians. With the callback, you can
-   share computation between residual blocks by doing the shared
-   computation in PrepareForEvaluation() before Ceres calls
-   CostFunction::Evaluate() on all the residuals. It also enables
-   caching results between a pure residual evaluation and a residual &
-   jacobian evaluation, via the new_evaluation_point argument.
-
-   One use case for this callback is if the cost function compute is
-   moved to the GPU. In that case, the prepare call does the actual cost
-   function evaluation, and subsequent calls from Ceres to the actual
-   cost functions merely copy the results from the GPU onto the
-   corresponding blocks for Ceres to plug into the solver.
-
-   **Note**: Ceres provides no mechanism to share data other than the
-   notification from the callback. Users must provide access to
-   pre-computed shared data to their cost functions behind the scenes;
-   this all happens without Ceres knowing. One approach is to put a
-   pointer to the shared data in each cost function (recommended) or to
-   use a global shared variable (discouraged; bug-prone).  As far as
-   Ceres is concerned, it is evaluating cost functions like any other;
-   it just so happens that behind the scenes the cost functions reuse
-   pre-computed data to execute faster.
-
-   See ``evaluation_callback_test.cc`` for code that explicitly verifies
-   the preconditions between ``PrepareForEvaluation()`` and
-   ``CostFunction::Evaluate()``.
-
-:class:`IterationCallback`
+:class:`IterationSummary`
 ==========================
 
 .. class:: IterationSummary
@@ -1789,7 +1802,7 @@ elimination group [LiSaad]_.
    :class:`IterationSummary` describes the state of the minimizer at
    the end of each iteration.
 
-.. member:: int32 IterationSummary::iteration
+.. member:: int IterationSummary::iteration
 
    Current iteration number.
 
@@ -1901,6 +1914,8 @@ elimination group [LiSaad]_.
 
    Time (in seconds) since the user called Solve().
 
+:class:`IterationCallback`
+==========================
 
 .. class:: IterationCallback
 
@@ -2175,7 +2190,7 @@ The three arrays will be:
    Dimension of the tangent space of the problem (or the number of
    columns in the Jacobian for the problem). This is different from
    :member:`Solver::Summary::num_parameters` if a parameter block is
-   associated with a :class:`LocalParameterization`.
+   associated with a :class:`Manifold`.
 
 .. member:: int Solver::Summary::num_residual_blocks
 
@@ -2201,7 +2216,7 @@ The three arrays will be:
    number of columns in the Jacobian for the reduced problem). This is
    different from :member:`Solver::Summary::num_parameters_reduced` if
    a parameter block in the reduced problem is associated with a
-   :class:`LocalParameterization`.
+   :class:`Manifold`.
 
 .. member:: int Solver::Summary::num_residual_blocks_reduced
 
@@ -2220,30 +2235,8 @@ The three arrays will be:
 
    Number of threads actually used by the solver for Jacobian and
    residual evaluation. This number is not equal to
-   :member:`Solver::Summary::num_threads_given` if none of `OpenMP`,
-   `TBB` or `CXX11_THREADS` is available.
-
-.. member:: int Solver::Summary::num_linear_solver_threads_given
-
-   **This field is deprecated and is scheduled to be removed in
-   1.15.0.** :member:`Solver::Summary::num_threads_given` should be used
-   instead.  In the interim the value of this field will be the same as
-   :member:`Solver::Summary::num_threads_given`.
-
-   Number of threads requested by the user for solving the trust
-   region problem.
-
-.. member:: int Solver::Summary::num_linear_solver_threads_used
-
-   **This field is deprecated and is scheduled to be removed in
-   1.15.0.** :member:`Solver::Summary::num_threads_used` should be used
-   instead.  In the interim the value of this field will be the same as
-   :member:`Solver::Summary::num_threads_used`.
-
-   Number of threads actually used by the solver for solving the trust
-   region problem. This number is not equal to
-   :member:`Solver::Summary::num_linear_solver_threads_given` if none
-   of `OpenMP`, `TBB` or `CXX11_THREADS` is available.
+   :member:`Solver::Summary::num_threads_given` if none of `OpenMP`
+   or `CXX_THREADS` is available.
 
 .. member:: LinearSolverType Solver::Summary::linear_solver_type_given
 

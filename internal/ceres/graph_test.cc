@@ -31,10 +31,10 @@
 #include "ceres/graph.h"
 
 #include <unordered_set>
+
 #include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 TEST(Graph, EmptyGraph) {
   Graph<int> graph;
@@ -147,5 +147,4 @@ TEST(WeightedGraph, NonExistentEdge) {
   EXPECT_EQ(graph.EdgeWeight(2, 3), 0);
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

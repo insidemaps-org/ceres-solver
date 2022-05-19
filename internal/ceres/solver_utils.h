@@ -28,14 +28,18 @@
 //
 // Author: sameeragarwal@google.com (Sameer Agarwal)
 
+#ifndef CERES_INTERNAL_SOLVER_UTILS_H_
+#define CERES_INTERNAL_SOLVER_UTILS_H_
+
 #include <algorithm>
 #include <string>
 
+#include "ceres/internal/disable_warnings.h"
+#include "ceres/internal/export.h"
 #include "ceres/iteration_callback.h"
 #include "ceres/types.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 template <typename SummaryType>
 bool IsSolutionUsable(const SummaryType& summary) {
@@ -55,7 +59,11 @@ void SetSummaryFinalCost(SummaryType* summary) {
   }
 }
 
+CERES_NO_EXPORT
 std::string VersionString();
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
+
+#include "ceres/internal/reenable_warnings.h"
+
+#endif  // CERES_INTERNAL_SOLVER_UTILS_H_

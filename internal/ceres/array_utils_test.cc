@@ -30,13 +30,13 @@
 
 #include "ceres/array_utils.h"
 
-#include <limits>
 #include <cmath>
+#include <limits>
 #include <vector>
+
 #include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 using std::vector;
 
@@ -52,7 +52,7 @@ TEST(ArrayUtils, IsArrayValid) {
   EXPECT_FALSE(IsArrayValid(3, x));
   x[1] = std::numeric_limits<double>::signaling_NaN();
   EXPECT_FALSE(IsArrayValid(3, x));
-  EXPECT_TRUE(IsArrayValid(1, NULL));
+  EXPECT_TRUE(IsArrayValid(1, nullptr));
   InvalidateArray(3, x);
   EXPECT_FALSE(IsArrayValid(3, x));
 }
@@ -69,7 +69,7 @@ TEST(ArrayUtils, FindInvalidIndex) {
   EXPECT_EQ(FindInvalidValue(3, x), 1);
   x[1] = std::numeric_limits<double>::signaling_NaN();
   EXPECT_EQ(FindInvalidValue(3, x), 1);
-  EXPECT_EQ(FindInvalidValue(1, NULL), 1);
+  EXPECT_EQ(FindInvalidValue(1, nullptr), 1);
   InvalidateArray(3, x);
   EXPECT_EQ(FindInvalidValue(3, x), 0);
 }
@@ -120,5 +120,4 @@ TEST(MapValuesToContiguousRange, NonContiguousRepeatingEntries) {
   EXPECT_EQ(array, expected);
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

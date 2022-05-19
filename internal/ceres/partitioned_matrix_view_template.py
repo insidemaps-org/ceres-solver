@@ -89,64 +89,61 @@ HEADER = """// Ceres Solver - A fast non-linear least squares minimizer
 """
 
 DYNAMIC_FILE = """
-
 #include "ceres/partitioned_matrix_view_impl.h"
-#include "ceres/internal/eigen.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
-template class PartitionedMatrixView<%s, %s, %s>;
+template class PartitionedMatrixView<%s,
+                                     %s,
+                                     %s>;
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 """
 
 SPECIALIZATION_FILE = """
 // This include must come before any #ifndef check on Ceres compile options.
-#include "ceres/internal/port.h"
+#include "ceres/internal/config.h"
 
 #ifndef CERES_RESTRICT_SCHUR_SPECIALIZATION
 
 #include "ceres/partitioned_matrix_view_impl.h"
-#include "ceres/internal/eigen.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 template class PartitionedMatrixView<%s, %s, %s>;
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_RESTRICT_SCHUR_SPECIALIZATION
 """
 
 FACTORY_FILE_HEADER = """
+#include <memory>
+
 #include "ceres/linear_solver.h"
 #include "ceres/partitioned_matrix_view.h"
-#include "ceres/internal/eigen.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
-PartitionedMatrixViewBase*
-PartitionedMatrixViewBase::Create(const LinearSolver::Options& options,
-                                  const BlockSparseMatrix& matrix) {
+PartitionedMatrixViewBase::~PartitionedMatrixViewBase() = default;
+
+std::unique_ptr<PartitionedMatrixViewBase> PartitionedMatrixViewBase::Create(
+    const LinearSolver::Options& options, const BlockSparseMatrix& matrix) {
 #ifndef CERES_RESTRICT_SCHUR_SPECIALIZATION
 """
-FACTORY = """ return new PartitionedMatrixView<%s, %s, %s>(matrix, options.elimination_groups[0]);"""
+FACTORY = """  return std::make_unique<PartitionedMatrixView<%s,%s, %s>>(
+                   matrix, options.elimination_groups[0]);"""
 
 FACTORY_FOOTER = """
 #endif
   VLOG(1) << "Template specializations not found for <"
-          << options.row_block_size << ","
-          << options.e_block_size << ","
+          << options.row_block_size << "," << options.e_block_size << ","
           << options.f_block_size << ">";
-  return new PartitionedMatrixView<Eigen::Dynamic, Eigen::Dynamic, Eigen::Dynamic>(
-               matrix, options.elimination_groups[0]);
+  return std::make_unique<PartitionedMatrixView<Eigen::Dynamic,
+                                                Eigen::Dynamic,
+                                                Eigen::Dynamic>>(
+      matrix, options.elimination_groups[0]);
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 """

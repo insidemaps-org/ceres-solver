@@ -33,14 +33,14 @@
 #include "ceres/file.h"
 
 #include <cstdio>
+
 #include "glog/logging.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 using std::string;
 
-void WriteStringToFileOrDie(const string &data, const string &filename) {
+void WriteStringToFileOrDie(const string& data, const string& filename) {
   FILE* file_descriptor = fopen(filename.c_str(), "wb");
   if (!file_descriptor) {
     LOG(FATAL) << "Couldn't write to file: " << filename;
@@ -49,7 +49,7 @@ void WriteStringToFileOrDie(const string &data, const string &filename) {
   fclose(file_descriptor);
 }
 
-void ReadFileToStringOrDie(const string &filename, string *data) {
+void ReadFileToStringOrDie(const string& filename, string* data) {
   FILE* file_descriptor = fopen(filename.c_str(), "r");
 
   if (!file_descriptor) {
@@ -63,10 +63,8 @@ void ReadFileToStringOrDie(const string &filename, string *data) {
 
   // Read the data.
   fseek(file_descriptor, 0L, SEEK_SET);
-  int num_read = fread(&((*data)[0]),
-                       sizeof((*data)[0]),
-                       num_bytes,
-                       file_descriptor);
+  int num_read =
+      fread(&((*data)[0]), sizeof((*data)[0]), num_bytes, file_descriptor);
   if (num_read != num_bytes) {
     LOG(FATAL) << "Couldn't read all of " << filename
                << "expected bytes: " << num_bytes * sizeof((*data)[0])
@@ -77,9 +75,9 @@ void ReadFileToStringOrDie(const string &filename, string *data) {
 
 string JoinPath(const string& dirname, const string& basename) {
 #ifdef _WIN32
-    static const char separator = '\\';
+  static const char separator = '\\';
 #else
-    static const char separator = '/';
+  static const char separator = '/';
 #endif  // _WIN32
 
   if ((!basename.empty() && basename[0] == separator) || dirname.empty()) {
@@ -91,5 +89,4 @@ string JoinPath(const string& dirname, const string& basename) {
   }
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

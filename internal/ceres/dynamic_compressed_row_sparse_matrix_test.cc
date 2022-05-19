@@ -31,6 +31,7 @@
 #include "ceres/dynamic_compressed_row_sparse_matrix.h"
 
 #include <memory>
+
 #include "ceres/casts.h"
 #include "ceres/compressed_row_sparse_matrix.h"
 #include "ceres/internal/eigen.h"
@@ -46,7 +47,7 @@ using std::vector;
 
 class DynamicCompressedRowSparseMatrixTest : public ::testing::Test {
  protected:
-  virtual void SetUp() {
+  void SetUp() final {
     num_rows = 7;
     num_cols = 4;
 
@@ -60,14 +61,11 @@ class DynamicCompressedRowSparseMatrixTest : public ::testing::Test {
     InitialiseDenseReference();
     InitialiseSparseMatrixReferences();
 
-    dcrsm.reset(new DynamicCompressedRowSparseMatrix(num_rows,
-                                                     num_cols,
-                                                     0));
+    dcrsm = std::make_unique<DynamicCompressedRowSparseMatrix>(
+        num_rows, num_cols, 0);
   }
 
-  void Finalize() {
-    dcrsm->Finalize(num_additional_elements);
-  }
+  void Finalize() { dcrsm->Finalize(num_additional_elements); }
 
   void InitialiseDenseReference() {
     dense.resize(num_rows, num_cols);
@@ -96,9 +94,8 @@ class DynamicCompressedRowSparseMatrixTest : public ::testing::Test {
     }
     ASSERT_EQ(values.size(), expected_num_nonzeros);
 
-    tsm.reset(new TripletSparseMatrix(num_rows,
-                                      num_cols,
-                                      expected_num_nonzeros));
+    tsm = std::make_unique<TripletSparseMatrix>(
+        num_rows, num_cols, expected_num_nonzeros);
     copy(rows.begin(), rows.end(), tsm->mutable_rows());
     copy(cols.begin(), cols.end(), tsm->mutable_cols());
     copy(values.begin(), values.end(), tsm->mutable_values());
@@ -108,7 +105,7 @@ class DynamicCompressedRowSparseMatrixTest : public ::testing::Test {
     tsm->ToDenseMatrix(&dense_from_tsm);
     ASSERT_TRUE((dense.array() == dense_from_tsm.array()).all());
 
-    crsm.reset(CompressedRowSparseMatrix::FromTripletSparseMatrix(*tsm));
+    crsm = CompressedRowSparseMatrix::FromTripletSparseMatrix(*tsm);
     Matrix dense_from_crsm;
     crsm->ToDenseMatrix(&dense_from_crsm);
     ASSERT_TRUE((dense.array() == dense_from_crsm.array()).all());
@@ -144,7 +141,7 @@ class DynamicCompressedRowSparseMatrixTest : public ::testing::Test {
   }
 
   void ExpectEqualToCompressedRowSparseMatrixReference() {
-    typedef Eigen::Map<const Eigen::VectorXi> ConstIntVectorRef;
+    using ConstIntVectorRef = Eigen::Map<const Eigen::VectorXi>;
 
     ConstIntVectorRef crsm_rows(crsm->rows(), crsm->num_rows() + 1);
     ConstIntVectorRef dcrsm_rows(dcrsm->rows(), dcrsm->num_rows() + 1);

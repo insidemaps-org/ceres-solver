@@ -40,8 +40,7 @@
 #include "ceres/problem_impl.h"
 #include "ceres/solver.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 class Program;
 class LinearSolver;
@@ -56,7 +55,7 @@ class LinearSolver;
 //
 // The minimizer assumes that none of the parameter blocks in the
 // program are constant.
-class CoordinateDescentMinimizer : public Minimizer {
+class CERES_NO_EXPORT CoordinateDescentMinimizer final : public Minimizer {
  public:
   explicit CoordinateDescentMinimizer(ContextImpl* context);
 
@@ -66,11 +65,11 @@ class CoordinateDescentMinimizer : public Minimizer {
             std::string* error);
 
   // Minimizer interface.
-  virtual ~CoordinateDescentMinimizer();
+  ~CoordinateDescentMinimizer() override;
 
-  virtual void Minimize(const Minimizer::Options& options,
-                        double* parameters,
-                        Solver::Summary* summary);
+  void Minimize(const Minimizer::Options& options,
+                double* parameters,
+                Solver::Summary* summary) final;
 
   // Verify that each group in the ordering forms an independent set.
   static bool IsOrderingValid(const Program& program,
@@ -81,7 +80,8 @@ class CoordinateDescentMinimizer : public Minimizer {
   // of independent sets of decreasing size and invert it. This
   // seems to work better in practice, i.e., Cameras before
   // points.
-  static ParameterBlockOrdering* CreateOrdering(const Program& program);
+  static std::shared_ptr<ParameterBlockOrdering> CreateOrdering(
+      const Program& program);
 
  private:
   void Solve(Program* program,
@@ -102,7 +102,6 @@ class CoordinateDescentMinimizer : public Minimizer {
   ContextImpl* context_;
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_COORDINATE_DESCENT_MINIMIZER_H_

@@ -28,30 +28,31 @@
 //
 // Author: sameeragarwal@google.com (Sameer Agarwal)
 
+#include "ceres/block_random_access_diagonal_matrix.h"
+
 #include <limits>
 #include <memory>
 #include <vector>
 
-#include "ceres/block_random_access_diagonal_matrix.h"
+#include "Eigen/Cholesky"
 #include "ceres/internal/eigen.h"
 #include "glog/logging.h"
 #include "gtest/gtest.h"
-#include "Eigen/Cholesky"
 
 namespace ceres {
 namespace internal {
 
 class BlockRandomAccessDiagonalMatrixTest : public ::testing::Test {
  public:
-  void SetUp() {
+  void SetUp() override {
     std::vector<int> blocks;
     blocks.push_back(3);
     blocks.push_back(4);
     blocks.push_back(5);
     const int num_rows = 3 + 4 + 5;
-    num_nonzeros_ =  3 * 3 + 4 * 4 + 5 * 5;
+    num_nonzeros_ = 3 * 3 + 4 * 4 + 5 * 5;
 
-    m_.reset(new BlockRandomAccessDiagonalMatrix(blocks));
+    m_ = std::make_unique<BlockRandomAccessDiagonalMatrix>(blocks);
 
     EXPECT_EQ(m_->num_rows(), num_rows);
     EXPECT_EQ(m_->num_cols(), num_rows);
@@ -66,27 +67,26 @@ class BlockRandomAccessDiagonalMatrixTest : public ::testing::Test {
 
       for (int j = 0; j < blocks.size(); ++j) {
         col_block_id = j;
-        CellInfo* cell =  m_->GetCell(row_block_id, col_block_id,
-                                    &row, &col,
-                                    &row_stride, &col_stride);
+        CellInfo* cell = m_->GetCell(
+            row_block_id, col_block_id, &row, &col, &row_stride, &col_stride);
         // Off diagonal entries are not present.
         if (i != j) {
-          EXPECT_TRUE(cell == NULL);
+          EXPECT_TRUE(cell == nullptr);
           continue;
         }
 
-        EXPECT_TRUE(cell != NULL);
+        EXPECT_TRUE(cell != nullptr);
         EXPECT_EQ(row, 0);
         EXPECT_EQ(col, 0);
         EXPECT_EQ(row_stride, blocks[row_block_id]);
         EXPECT_EQ(col_stride, blocks[col_block_id]);
 
         // Write into the block
-        MatrixRef(cell->values, row_stride, col_stride).block(
-            row, col, blocks[row_block_id], blocks[col_block_id]) =
-            (row_block_id + 1) * (col_block_id +1) *
-            Matrix::Ones(blocks[row_block_id], blocks[col_block_id])
-            + Matrix::Identity(blocks[row_block_id], blocks[row_block_id]);
+        MatrixRef(cell->values, row_stride, col_stride)
+            .block(row, col, blocks[row_block_id], blocks[col_block_id]) =
+            (row_block_id + 1) * (col_block_id + 1) *
+                Matrix::Ones(blocks[row_block_id], blocks[col_block_id]) +
+            Matrix::Identity(blocks[row_block_id], blocks[row_block_id]);
       }
     }
   }
@@ -107,28 +107,31 @@ TEST_F(BlockRandomAccessDiagonalMatrixTest, MatrixContents) {
   double kTolerance = 1e-14;
 
   // (0,0)
-  EXPECT_NEAR((dense.block(0, 0, 3, 3) -
-               (Matrix::Ones(3, 3) + Matrix::Identity(3, 3))).norm(),
-              0.0,
-              kTolerance);
+  EXPECT_NEAR(
+      (dense.block(0, 0, 3, 3) - (Matrix::Ones(3, 3) + Matrix::Identity(3, 3)))
+          .norm(),
+      0.0,
+      kTolerance);
 
   // (1,1)
   EXPECT_NEAR((dense.block(3, 3, 4, 4) -
-               (2 * 2 * Matrix::Ones(4, 4) + Matrix::Identity(4, 4))).norm(),
+               (2 * 2 * Matrix::Ones(4, 4) + Matrix::Identity(4, 4)))
+                  .norm(),
               0.0,
               kTolerance);
 
   // (1,1)
   EXPECT_NEAR((dense.block(7, 7, 5, 5) -
-               (3 * 3 * Matrix::Ones(5, 5) + Matrix::Identity(5, 5))).norm(),
+               (3 * 3 * Matrix::Ones(5, 5) + Matrix::Identity(5, 5)))
+                  .norm(),
               0.0,
               kTolerance);
 
   // There is nothing else in the matrix besides these four blocks.
-  EXPECT_NEAR(dense.norm(),
-              sqrt(6 * 1.0 + 3 * 4.0 +
-                   12 * 16.0 + 4 * 25.0 +
-                   20 * 81.0 + 5 * 100.0), kTolerance);
+  EXPECT_NEAR(
+      dense.norm(),
+      sqrt(6 * 1.0 + 3 * 4.0 + 12 * 16.0 + 4 * 25.0 + 20 * 81.0 + 5 * 100.0),
+      kTolerance);
 }
 
 TEST_F(BlockRandomAccessDiagonalMatrixTest, RightMultiply) {
@@ -139,7 +142,7 @@ TEST_F(BlockRandomAccessDiagonalMatrixTest, RightMultiply) {
   Vector x = Vector::Random(dense.rows());
   Vector expected_y = dense * x;
   Vector actual_y = Vector::Zero(dense.rows());
-  m_->RightMultiply(x.data(),  actual_y.data());
+  m_->RightMultiply(x.data(), actual_y.data());
   EXPECT_NEAR((expected_y - actual_y).norm(), 0, kTolerance);
 }
 

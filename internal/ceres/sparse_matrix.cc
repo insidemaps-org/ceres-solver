@@ -30,11 +30,8 @@
 
 #include "ceres/sparse_matrix.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
-SparseMatrix::~SparseMatrix() {
-}
+SparseMatrix::~SparseMatrix() = default;
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

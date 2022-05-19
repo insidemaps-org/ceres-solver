@@ -32,21 +32,16 @@
 #define CERES_INTERNAL_THREAD_TOKEN_PROVIDER_H_
 
 #include "ceres/internal/config.h"
-#include "ceres/internal/port.h"
+#include "ceres/internal/export.h"
 
-#ifdef CERES_USE_TBB
-#include <tbb/concurrent_queue.h>
-#endif
-
-#ifdef CERES_USE_CXX11_THREADS
+#ifdef CERES_USE_CXX_THREADS
 #include "ceres/concurrent_queue.h"
 #endif
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
-// Helper for TBB and C++11 thread number identification that is similar to
-// omp_get_thread_num() behaviour. This is necessary to support TBB and C++11
+// Helper for C++ thread number identification that is similar to
+// omp_get_thread_num() behaviour. This is necessary to support C++
 // threading with a sequential thread id. This is used to access preallocated
 // resources in the parallelized code parts.  The sequence of tokens varies from
 // 0 to num_threads - 1 that can be acquired to identify the thread in a thread
@@ -70,29 +65,19 @@ namespace internal {
 //    ttp.Release(token); // return token to the pool
 //  }
 //
-class ThreadTokenProvider {
+class CERES_NO_EXPORT ThreadTokenProvider {
  public:
-  ThreadTokenProvider(int num_threads);
+  explicit ThreadTokenProvider(int num_threads);
 
   // Returns the first token from the queue. The acquired value must be
   // given back by Release().
-  //
-  // With TBB this function will block if all the tokens are aquired by
-  // concurent threads.
   int Acquire();
 
   // Makes previously acquired token available for other threads.
   void Release(int thread_id);
 
  private:
-#ifdef CERES_USE_TBB
-  // This queue initially holds a sequence from 0..num_threads-1. Every
-  // Acquire() call the first number is removed from here. When the token is not
-  // needed anymore it shall be given back with corresponding Release() call.
-  tbb::concurrent_bounded_queue<int> pool_;
-#endif
-
-#ifdef CERES_USE_CXX11_THREADS
+#ifdef CERES_USE_CXX_THREADS
   // This queue initially holds a sequence from 0..num_threads-1. Every
   // Acquire() call the first number is removed from here. When the token is not
   // needed anymore it shall be given back with corresponding Release()
@@ -101,11 +86,10 @@ class ThreadTokenProvider {
   ConcurrentQueue<int> pool_;
 #endif
 
-  ThreadTokenProvider(ThreadTokenProvider&);
-  ThreadTokenProvider& operator=(ThreadTokenProvider&);
+  ThreadTokenProvider(ThreadTokenProvider&) = delete;
+  ThreadTokenProvider& operator=(ThreadTokenProvider&) = delete;
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_THREAD_TOKEN_PROVIDER_H_

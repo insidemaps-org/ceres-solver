@@ -38,30 +38,31 @@
 #ifndef CERES_INTERNAL_BLOCK_JACOBIAN_WRITER_H_
 #define CERES_INTERNAL_BLOCK_JACOBIAN_WRITER_H_
 
+#include <memory>
 #include <vector>
-#include "ceres/evaluator.h"
-#include "ceres/internal/port.h"
 
-namespace ceres {
-namespace internal {
+#include "ceres/evaluator.h"
+#include "ceres/internal/export.h"
+
+namespace ceres::internal {
 
 class BlockEvaluatePreparer;
 class Program;
 class SparseMatrix;
 
-// TODO(sameeragarwal): This class needs documemtation.
-class BlockJacobianWriter {
+// TODO(sameeragarwal): This class needs documentation.
+class CERES_NO_EXPORT BlockJacobianWriter {
  public:
-  BlockJacobianWriter(const Evaluator::Options& options,
-                      Program* program);
+  BlockJacobianWriter(const Evaluator::Options& options, Program* program);
 
   // JacobianWriter interface.
 
   // Create evaluate prepareres that point directly into the final jacobian.
   // This makes the final Write() a nop.
-  BlockEvaluatePreparer* CreateEvaluatePreparers(int num_threads);
+  std::unique_ptr<BlockEvaluatePreparer[]> CreateEvaluatePreparers(
+      int num_threads);
 
-  SparseMatrix* CreateJacobian() const;
+  std::unique_ptr<SparseMatrix> CreateJacobian() const;
 
   void Write(int /* residual_id */,
              int /* residual_offset */,
@@ -78,7 +79,7 @@ class BlockJacobianWriter {
   // Stores the position of each residual / parameter jacobian.
   //
   // The block sparse matrix that this writer writes to is stored as a set of
-  // contiguos dense blocks, one after each other; see BlockSparseMatrix. The
+  // contiguous dense blocks, one after each other; see BlockSparseMatrix. The
   // "double* values_" member of the block sparse matrix contains all of these
   // blocks. Given a pointer to the first element of a block and the size of
   // that block, it's possible to write to it.
@@ -122,7 +123,6 @@ class BlockJacobianWriter {
   std::vector<int> jacobian_layout_storage_;
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_BLOCK_JACOBIAN_WRITER_H_

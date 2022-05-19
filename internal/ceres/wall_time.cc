@@ -30,6 +30,8 @@
 
 #include "ceres/wall_time.h"
 
+#include "ceres/internal/config.h"
+
 #ifdef CERES_USE_OPENMP
 #include <omp.h>
 #else
@@ -42,8 +44,7 @@
 #include <sys/time.h>
 #endif
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 double WallTimeInSeconds() {
 #ifdef CERES_USE_OPENMP
@@ -58,26 +59,30 @@ double WallTimeInSeconds() {
          static_cast<double>(frequency.QuadPart);
 #else
   timeval time_val;
-  gettimeofday(&time_val, NULL);
+  gettimeofday(&time_val, nullptr);
   return (time_val.tv_sec + time_val.tv_usec * 1e-6);
 #endif
 #endif
 }
 
-EventLogger::EventLogger(const std::string& logger_name)
-    : start_time_(WallTimeInSeconds()),
-      last_event_time_(start_time_),
-      events_("") {
-  StringAppendF(&events_,
-                "\n%s\n                                   Delta   Cumulative\n",
-                logger_name.c_str());
+EventLogger::EventLogger(const std::string& logger_name) {
+  if (!VLOG_IS_ON(3)) {
+    return;
+  }
+
+  start_time_ = WallTimeInSeconds();
+  last_event_time_ = start_time_;
+  events_ = StringPrintf(
+      "\n%s\n                                   Delta   Cumulative\n",
+      logger_name.c_str());
 }
 
 EventLogger::~EventLogger() {
-  if (VLOG_IS_ON(3)) {
-    AddEvent("Total");
-    VLOG(2) << "\n" << events_ << "\n";
+  if (!VLOG_IS_ON(3)) {
+    return;
   }
+  AddEvent("Total");
+  VLOG(3) << "\n" << events_ << "\n";
 }
 
 void EventLogger::AddEvent(const std::string& event_name) {
@@ -97,5 +102,4 @@ void EventLogger::AddEvent(const std::string& event_name) {
                 absolute_time_delta);
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

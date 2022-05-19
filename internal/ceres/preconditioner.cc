@@ -29,13 +29,12 @@
 // Author: sameeragarwal@google.com (Sameer Agarwal)
 
 #include "ceres/preconditioner.h"
+
 #include "glog/logging.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
-Preconditioner::~Preconditioner() {
-}
+Preconditioner::~Preconditioner() = default;
 
 PreconditionerType Preconditioner::PreconditionerForZeroEBlocks(
     PreconditionerType preconditioner_type) {
@@ -49,11 +48,12 @@ PreconditionerType Preconditioner::PreconditionerForZeroEBlocks(
 
 SparseMatrixPreconditionerWrapper::SparseMatrixPreconditionerWrapper(
     const SparseMatrix* matrix)
-    : matrix_(CHECK_NOTNULL(matrix)) {
+    : matrix_(matrix) {
+  CHECK(matrix != nullptr);
 }
 
-SparseMatrixPreconditionerWrapper::~SparseMatrixPreconditionerWrapper() {
-}
+SparseMatrixPreconditionerWrapper::~SparseMatrixPreconditionerWrapper() =
+    default;
 
 bool SparseMatrixPreconditionerWrapper::UpdateImpl(const SparseMatrix& A,
                                                    const double* D) {
@@ -65,9 +65,8 @@ void SparseMatrixPreconditionerWrapper::RightMultiply(const double* x,
   matrix_->RightMultiply(x, y);
 }
 
-int  SparseMatrixPreconditionerWrapper::num_rows() const {
+int SparseMatrixPreconditionerWrapper::num_rows() const {
   return matrix_->num_rows();
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

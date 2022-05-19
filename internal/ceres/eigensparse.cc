@@ -30,28 +30,32 @@
 
 #include "ceres/eigensparse.h"
 
+#include <memory>
+
 #ifdef CERES_USE_EIGEN_SPARSE
 
 #include <sstream>
+
 #include "Eigen/SparseCholesky"
 #include "Eigen/SparseCore"
 #include "ceres/compressed_row_sparse_matrix.h"
 #include "ceres/linear_solver.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
+// TODO(sameeragarwal): Use enable_if to clean up the implementations
+// for when Scalar == double.
 template <typename Solver>
-class EigenSparseCholeskyTemplate : public EigenSparseCholesky {
+class EigenSparseCholeskyTemplate final : public SparseCholesky {
  public:
-  EigenSparseCholeskyTemplate() : analyzed_(false) {}
-  virtual ~EigenSparseCholeskyTemplate() {}
-  virtual CompressedRowSparseMatrix::StorageType StorageType() const {
-    return CompressedRowSparseMatrix::LOWER_TRIANGULAR;
+  EigenSparseCholeskyTemplate() = default;
+  CompressedRowSparseMatrix::StorageType StorageType() const final {
+    return CompressedRowSparseMatrix::StorageType::LOWER_TRIANGULAR;
   }
 
-  virtual LinearSolverTerminationType Factorize(
-      const Eigen::SparseMatrix<double>& lhs, std::string* message) {
+  LinearSolverTerminationType Factorize(
+      const Eigen::SparseMatrix<typename Solver::Scalar>& lhs,
+      std::string* message) {
     if (!analyzed_) {
       solver_.analyzePattern(lhs);
 
@@ -63,7 +67,7 @@ class EigenSparseCholeskyTemplate : public EigenSparseCholesky {
 
       if (solver_.info() != Eigen::Success) {
         *message = "Eigen failure. Unable to find symbolic factorization.";
-        return LINEAR_SOLVER_FATAL_ERROR;
+        return LinearSolverTerminationType::FATAL_ERROR;
       }
 
       analyzed_ = true;
@@ -72,72 +76,106 @@ class EigenSparseCholeskyTemplate : public EigenSparseCholesky {
     solver_.factorize(lhs);
     if (solver_.info() != Eigen::Success) {
       *message = "Eigen failure. Unable to find numeric factorization.";
-      return LINEAR_SOLVER_FAILURE;
+      return LinearSolverTerminationType::FAILURE;
     }
-    return LINEAR_SOLVER_SUCCESS;
+    return LinearSolverTerminationType::SUCCESS;
   }
 
-  virtual LinearSolverTerminationType Solve(const double* rhs,
-                                            double* solution,
-                                            std::string* message) {
+  LinearSolverTerminationType Solve(const double* rhs_ptr,
+                                    double* solution_ptr,
+                                    std::string* message) override {
     CHECK(analyzed_) << "Solve called without a call to Factorize first.";
 
-    VectorRef(solution, solver_.cols()) =
-        solver_.solve(ConstVectorRef(rhs, solver_.cols()));
+    scalar_rhs_ = ConstVectorRef(rhs_ptr, solver_.cols())
+                      .template cast<typename Solver::Scalar>();
+
+    // The two casts are needed if the Scalar in this class is not
+    // double. For code simplicity we are going to assume that Eigen
+    // is smart enough to figure out that casting a double Vector to a
+    // double Vector is a straight copy. If this turns into a
+    // performance bottleneck (unlikely), we can revisit this.
+    scalar_solution_ = solver_.solve(scalar_rhs_);
+    VectorRef(solution_ptr, solver_.cols()) =
+        scalar_solution_.template cast<double>();
+
     if (solver_.info() != Eigen::Success) {
       *message = "Eigen failure. Unable to do triangular solve.";
-      return LINEAR_SOLVER_FAILURE;
+      return LinearSolverTerminationType::FAILURE;
     }
-    return LINEAR_SOLVER_SUCCESS;
+    return LinearSolverTerminationType::SUCCESS;
   }
 
-  virtual LinearSolverTerminationType Factorize(CompressedRowSparseMatrix* lhs,
-                                                std::string* message) {
+  LinearSolverTerminationType Factorize(CompressedRowSparseMatrix* lhs,
+                                        std::string* message) final {
     CHECK_EQ(lhs->storage_type(), StorageType());
-    Eigen::MappedSparseMatrix<double, Eigen::ColMajor> eigen_lhs(
-        lhs->num_rows(),
-        lhs->num_rows(),
-        lhs->num_nonzeros(),
-        lhs->mutable_rows(),
-        lhs->mutable_cols(),
-        lhs->mutable_values());
+
+    typename Solver::Scalar* values_ptr = nullptr;
+    if (std::is_same<typename Solver::Scalar, double>::value) {
+      values_ptr =
+          reinterpret_cast<typename Solver::Scalar*>(lhs->mutable_values());
+    } else {
+      // In the case where the scalar used in this class is not
+      // double. In that case, make a copy of the values array in the
+      // CompressedRowSparseMatrix and cast it to Scalar along the way.
+      values_ = ConstVectorRef(lhs->values(), lhs->num_nonzeros())
+                    .cast<typename Solver::Scalar>();
+      values_ptr = values_.data();
+    }
+
+    Eigen::Map<Eigen::SparseMatrix<typename Solver::Scalar, Eigen::ColMajor>>
+        eigen_lhs(lhs->num_rows(),
+                  lhs->num_rows(),
+                  lhs->num_nonzeros(),
+                  lhs->mutable_rows(),
+                  lhs->mutable_cols(),
+                  values_ptr);
     return Factorize(eigen_lhs, message);
   }
 
  private:
-  bool analyzed_;
+  Eigen::Matrix<typename Solver::Scalar, Eigen::Dynamic, 1> values_,
+      scalar_rhs_, scalar_solution_;
+  bool analyzed_{false};
   Solver solver_;
 };
 
-EigenSparseCholesky* EigenSparseCholesky::Create(
+std::unique_ptr<SparseCholesky> EigenSparseCholesky::Create(
     const OrderingType ordering_type) {
-  // The preprocessor gymnastics here are dealing with the fact that
-  // before version 3.2.2, Eigen did not support a third template
-  // parameter to specify the ordering and it always defaults to AMD.
-#if EIGEN_VERSION_AT_LEAST(3, 2, 2)
-  typedef Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>,
-                                Eigen::Upper,
-                                Eigen::AMDOrdering<int>>
-      WithAMDOrdering;
-  typedef Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>,
-                                Eigen::Upper,
-                                Eigen::NaturalOrdering<int>>
-      WithNaturalOrdering;
-  if (ordering_type == AMD) {
-    return new EigenSparseCholeskyTemplate<WithAMDOrdering>();
+  using WithAMDOrdering = Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>,
+                                                Eigen::Upper,
+                                                Eigen::AMDOrdering<int>>;
+  using WithNaturalOrdering =
+      Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>,
+                            Eigen::Upper,
+                            Eigen::NaturalOrdering<int>>;
+
+  if (ordering_type == OrderingType::AMD) {
+    return std::make_unique<EigenSparseCholeskyTemplate<WithAMDOrdering>>();
   } else {
-    return new EigenSparseCholeskyTemplate<WithNaturalOrdering>();
+    return std::make_unique<EigenSparseCholeskyTemplate<WithNaturalOrdering>>();
   }
-#else
-  typedef Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>, Eigen::Upper>
-      WithAMDOrdering;
-  return new EigenSparseCholeskyTemplate<WithAMDOrdering>();
-#endif
 }
 
-EigenSparseCholesky::~EigenSparseCholesky() {}
+EigenSparseCholesky::~EigenSparseCholesky() = default;
 
-}  // namespace internal
-}  // namespace ceres
+std::unique_ptr<SparseCholesky> FloatEigenSparseCholesky::Create(
+    const OrderingType ordering_type) {
+  using WithAMDOrdering = Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>,
+                                                Eigen::Upper,
+                                                Eigen::AMDOrdering<int>>;
+  using WithNaturalOrdering =
+      Eigen::SimplicialLDLT<Eigen::SparseMatrix<float>,
+                            Eigen::Upper,
+                            Eigen::NaturalOrdering<int>>;
+  if (ordering_type == OrderingType::AMD) {
+    return std::make_unique<EigenSparseCholeskyTemplate<WithAMDOrdering>>();
+  } else {
+    return std::make_unique<EigenSparseCholeskyTemplate<WithNaturalOrdering>>();
+  }
+}
+
+FloatEigenSparseCholesky::~FloatEigenSparseCholesky() = default;
+
+}  // namespace ceres::internal
 
 #endif  // CERES_USE_EIGEN_SPARSE

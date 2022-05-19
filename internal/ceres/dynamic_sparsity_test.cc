@@ -32,13 +32,14 @@
 // Based on examples/ellipse_approximation.cc
 
 #include <cmath>
+#include <utility>
 #include <vector>
+
 #include "ceres/ceres.h"
 #include "glog/logging.h"
 #include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 // Data generated with the following Python code.
 //   import numpy as np
@@ -53,6 +54,7 @@ namespace internal {
 
 const int kYRows = 212;
 const int kYCols = 2;
+// clang-format off
 const double kYData[kYRows * kYCols] = {
   +3.871364e+00, +9.916027e-01,
   +3.864003e+00, +1.034148e+00,
@@ -267,14 +269,19 @@ const double kYData[kYRows * kYCols] = {
   +3.870542e+00, +9.996121e-01,
   +3.865424e+00, +1.028474e+00
 };
+// clang-format on
 
 ConstMatrixRef kY(kYData, kYRows, kYCols);
 
 class PointToLineSegmentContourCostFunction : public CostFunction {
  public:
+  // This class needs to have an Eigen aligned operator new as it contains
+  // fixed-size Eigen types.
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   PointToLineSegmentContourCostFunction(const int num_segments,
-                                        const Eigen::Vector2d& y)
-      : num_segments_(num_segments), y_(y) {
+                                        Eigen::Vector2d y)
+      : num_segments_(num_segments), y_(std::move(y)) {
     // The first parameter is the preimage position.
     mutable_parameter_block_sizes()->push_back(1);
     // The next parameters are the control points for the line segment contour.
@@ -284,9 +291,9 @@ class PointToLineSegmentContourCostFunction : public CostFunction {
     set_num_residuals(2);
   }
 
-  virtual bool Evaluate(const double* const* x,
-                        double* residuals,
-                        double** jacobians) const {
+  bool Evaluate(const double* const* x,
+                double* residuals,
+                double** jacobians) const final {
     // Convert the preimage position `t` into a segment index `i0` and the
     // line segment interpolation parameter `u`. `i1` is the index of the next
     // control point.
@@ -300,16 +307,16 @@ class PointToLineSegmentContourCostFunction : public CostFunction {
     residuals[0] = y_[0] - ((1.0 - u) * x[1 + i0][0] + u * x[1 + i1][0]);
     residuals[1] = y_[1] - ((1.0 - u) * x[1 + i0][1] + u * x[1 + i1][1]);
 
-    if (jacobians == NULL) {
+    if (jacobians == nullptr) {
       return true;
     }
 
-    if (jacobians[0] != NULL) {
+    if (jacobians[0] != nullptr) {
       jacobians[0][0] = x[1 + i0][0] - x[1 + i1][0];
       jacobians[0][1] = x[1 + i0][1] - x[1 + i1][1];
     }
     for (int i = 0; i < num_segments_; ++i) {
-      if (jacobians[i + 1] != NULL) {
+      if (jacobians[i + 1] != nullptr) {
         MatrixRef(jacobians[i + 1], 2, 2).setZero();
         if (i == i0) {
           jacobians[i + 1][0] = -(1.0 - u);
@@ -323,7 +330,8 @@ class PointToLineSegmentContourCostFunction : public CostFunction {
     return true;
   }
 
-  static CostFunction* Create(const int num_segments, const Eigen::Vector2d& y) {
+  static CostFunction* Create(const int num_segments,
+                              const Eigen::Vector2d& y) {
     return new PointToLineSegmentContourCostFunction(num_segments, y);
   }
 
@@ -395,7 +403,7 @@ TEST(DynamicSparsity, StaticAndDynamicSparsityProduceSameSolution) {
   // For each data point add a residual which measures its distance to its
   // corresponding position on the line segment contour.
   std::vector<double*> parameter_blocks(1 + num_segments);
-  parameter_blocks[0] = NULL;
+  parameter_blocks[0] = nullptr;
   for (int i = 0; i < num_segments; ++i) {
     parameter_blocks[i + 1] = X.data() + 2 * i;
   }
@@ -403,7 +411,7 @@ TEST(DynamicSparsity, StaticAndDynamicSparsityProduceSameSolution) {
     parameter_blocks[0] = &t[i];
     problem.AddResidualBlock(
         PointToLineSegmentContourCostFunction::Create(num_segments, kY.row(i)),
-        NULL,
+        nullptr,
         parameter_blocks);
   }
 
@@ -411,7 +419,7 @@ TEST(DynamicSparsity, StaticAndDynamicSparsityProduceSameSolution) {
   for (int i = 0; i < num_segments; ++i) {
     problem.AddResidualBlock(
         EuclideanDistanceFunctor::Create(sqrt(regularization_weight)),
-        NULL,
+        nullptr,
         X.data() + 2 * i,
         X.data() + 2 * ((i + 1) % num_segments));
   }
@@ -445,5 +453,4 @@ TEST(DynamicSparsity, StaticAndDynamicSparsityProduceSameSolution) {
       << dynamic_summary.FullReport();
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

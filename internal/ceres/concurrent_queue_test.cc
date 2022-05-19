@@ -29,20 +29,18 @@
 // Author: vitus@google.com (Michael Vitus)
 
 // This include must come before any #ifndef check on Ceres compile options.
-#include "ceres/internal/port.h"
+#include "ceres/internal/config.h"
 
-#ifdef CERES_USE_CXX11_THREADS
+#ifdef CERES_USE_CXX_THREADS
 
 #include <chrono>
 #include <thread>
 
 #include "ceres/concurrent_queue.h"
-
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 // A basic test of push and pop.
 TEST(ConcurrentQueue, PushPop) {
@@ -189,7 +187,7 @@ TEST(ConcurrentQueue, EnsureWaitBlocks) {
 
   std::thread thread([&]() {
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(mutex);
       waiting = true;
     }
 
@@ -197,7 +195,7 @@ TEST(ConcurrentQueue, EnsureWaitBlocks) {
     bool valid = queue.Wait(&element);
 
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(mutex);
       waiting = false;
       value = element;
       valid_value = valid;
@@ -209,7 +207,7 @@ TEST(ConcurrentQueue, EnsureWaitBlocks) {
 
   // Ensure nothing is has been popped off the queue
   {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     EXPECT_TRUE(waiting);
     ASSERT_FALSE(valid_value);
     ASSERT_EQ(0, value);
@@ -234,7 +232,7 @@ TEST(ConcurrentQueue, StopAndEnableWaiters) {
 
   auto task = [&]() {
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(mutex);
       waiting = true;
     }
 
@@ -242,7 +240,7 @@ TEST(ConcurrentQueue, StopAndEnableWaiters) {
     bool valid = queue.Wait(&element);
 
     {
-      std::unique_lock<std::mutex> lock(mutex);
+      std::lock_guard<std::mutex> lock(mutex);
       waiting = false;
       value = element;
       valid_value = valid;
@@ -256,7 +254,7 @@ TEST(ConcurrentQueue, StopAndEnableWaiters) {
 
   // Ensure the thread is waiting.
   {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     EXPECT_TRUE(waiting);
   }
 
@@ -286,7 +284,7 @@ TEST(ConcurrentQueue, StopAndEnableWaiters) {
 
   // Ensure nothing is popped off the queue.
   {
-    std::unique_lock<std::mutex> lock(mutex);
+    std::lock_guard<std::mutex> lock(mutex);
     EXPECT_TRUE(waiting);
     ASSERT_FALSE(valid_value);
     ASSERT_EQ(0, value);
@@ -301,7 +299,6 @@ TEST(ConcurrentQueue, StopAndEnableWaiters) {
   EXPECT_EQ(13456, value);
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
-#endif // CERES_USE_CXX11_THREADS
+#endif  // CERES_USE_CXX_THREADS

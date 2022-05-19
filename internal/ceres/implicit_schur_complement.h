@@ -35,14 +35,16 @@
 #define CERES_INTERNAL_IMPLICIT_SCHUR_COMPLEMENT_H_
 
 #include <memory>
+
+#include "ceres/internal/disable_warnings.h"
+#include "ceres/internal/eigen.h"
+#include "ceres/internal/export.h"
 #include "ceres/linear_operator.h"
 #include "ceres/linear_solver.h"
 #include "ceres/partitioned_matrix_view.h"
-#include "ceres/internal/eigen.h"
 #include "ceres/types.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 class BlockSparseMatrix;
 
@@ -79,14 +81,14 @@ class BlockSparseMatrix;
 // (which for our purposes is an easily inverted block diagonal
 // matrix), it can be done in terms of matrix vector products with E,
 // F and (E'E)^-1. This class implements this functionality and other
-// auxilliary bits needed to implement a CG solver on the Schur
+// auxiliary bits needed to implement a CG solver on the Schur
 // complement using the PartitionedMatrixView object.
 //
-// THREAD SAFETY: This class is nqot thread safe. In particular, the
+// THREAD SAFETY: This class is not thread safe. In particular, the
 // RightMultiply (and the LeftMultiply) methods are not thread safe as
 // they depend on mutable arrays used for the temporaries needed to
 // compute the product y += Sx;
-class ImplicitSchurComplement : public LinearOperator {
+class CERES_NO_EXPORT ImplicitSchurComplement final : public LinearOperator {
  public:
   // num_eliminate_blocks is the number of E blocks in the matrix
   // A.
@@ -98,7 +100,6 @@ class ImplicitSchurComplement : public LinearOperator {
   // TODO(sameeragarwal): Get rid of the two bools below and replace
   // them with enums.
   explicit ImplicitSchurComplement(const LinearSolver::Options& options);
-  virtual ~ImplicitSchurComplement();
 
   // Initialize the Schur complement for a linear least squares
   // problem of the form
@@ -113,11 +114,11 @@ class ImplicitSchurComplement : public LinearOperator {
   void Init(const BlockSparseMatrix& A, const double* D, const double* b);
 
   // y += Sx, where S is the Schur complement.
-  virtual void RightMultiply(const double* x, double* y) const;
+  void RightMultiply(const double* x, double* y) const final;
 
   // The Schur complement is a symmetric positive definite matrix,
   // thus the left and right multiply operators are the same.
-  virtual void LeftMultiply(const double* x, double* y) const {
+  void LeftMultiply(const double* x, double* y) const final {
     RightMultiply(x, y);
   }
 
@@ -127,9 +128,9 @@ class ImplicitSchurComplement : public LinearOperator {
   // complement.
   void BackSubstitute(const double* x, double* y);
 
-  virtual int num_rows() const { return A_->num_cols_f(); }
-  virtual int num_cols() const { return A_->num_cols_f(); }
-  const Vector& rhs()    const { return rhs_;             }
+  int num_rows() const final { return A_->num_cols_f(); }
+  int num_cols() const final { return A_->num_cols_f(); }
+  const Vector& rhs() const { return rhs_; }
 
   const BlockSparseMatrix* block_diagonal_EtE_inverse() const {
     return block_diagonal_EtE_inverse_.get();
@@ -161,7 +162,8 @@ class ImplicitSchurComplement : public LinearOperator {
   mutable Vector tmp_f_cols_;
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
+
+#include "ceres/internal/reenable_warnings.h"
 
 #endif  // CERES_INTERNAL_IMPLICIT_SCHUR_COMPLEMENT_H_

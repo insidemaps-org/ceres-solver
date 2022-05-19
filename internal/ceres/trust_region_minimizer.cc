@@ -34,8 +34,8 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
-#include <memory>
 #include <limits>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -59,10 +59,7 @@
     }                                                            \
   } while (0)
 
-namespace ceres {
-namespace internal {
-
-TrustRegionMinimizer::~TrustRegionMinimizer() {}
+namespace ceres::internal {
 
 void TrustRegionMinimizer::Minimize(const Minimizer::Options& options,
                                     double* parameters,
@@ -75,14 +72,19 @@ void TrustRegionMinimizer::Minimize(const Minimizer::Options& options,
   // Create the TrustRegionStepEvaluator. The construction needs to be
   // delayed to this point because we need the cost for the starting
   // point to initialize the step evaluator.
-  step_evaluator_.reset(new TrustRegionStepEvaluator(
+  step_evaluator_ = std::make_unique<TrustRegionStepEvaluator>(
       x_cost_,
       options_.use_nonmonotonic_steps
           ? options_.max_consecutive_nonmonotonic_steps
-          : 0));
+          : 0);
 
   while (FinalizeIterationAndCheckIfMinimizerCanContinue()) {
     iteration_start_time_in_secs_ = WallTimeInSeconds();
+
+    const double previous_gradient_norm = iteration_summary_.gradient_norm;
+    const double previous_gradient_max_norm =
+        iteration_summary_.gradient_max_norm;
+
     iteration_summary_ = IterationSummary();
     iteration_summary_.iteration =
         solver_summary->iterations.back().iteration + 1;
@@ -93,7 +95,8 @@ void TrustRegionMinimizer::Minimize(const Minimizer::Options& options,
       continue;
     }
 
-    if (options_.is_constrained) {
+    if (options_.is_constrained &&
+        options_.max_num_line_search_step_size_iterations > 0) {
       // Use a projected line search to enforce the bounds constraints
       // and improve the quality of the step.
       DoLineSearch(x_, gradient_, x_cost_, &delta_);
@@ -112,10 +115,18 @@ void TrustRegionMinimizer::Minimize(const Minimizer::Options& options,
 
     if (IsStepSuccessful()) {
       RETURN_IF_ERROR_AND_LOG(HandleSuccessfulStep());
-      continue;
-    }
+    } else {
+      // Declare the step unsuccessful and inform the trust region strategy.
+      iteration_summary_.step_is_successful = false;
+      iteration_summary_.cost = candidate_cost_ + solver_summary_->fixed_cost;
 
-    HandleUnsuccessfulStep();
+      // When the step is unsuccessful, we do not compute the gradient
+      // (or update x), so we preserve its value from the last
+      // successful iteration.
+      iteration_summary_.gradient_norm = previous_gradient_norm;
+      iteration_summary_.gradient_max_norm = previous_gradient_max_norm;
+      strategy_->StepRejected(iteration_summary_.relative_decrease);
+    }
   }
 }
 
@@ -136,13 +147,16 @@ void TrustRegionMinimizer::Init(const Minimizer::Options& options,
   solver_summary_->num_unsuccessful_steps = 0;
   solver_summary_->is_constrained = options.is_constrained;
 
-  evaluator_ = CHECK_NOTNULL(options_.evaluator.get());
-  jacobian_ = CHECK_NOTNULL(options_.jacobian.get());
-  strategy_ = CHECK_NOTNULL(options_.trust_region_strategy.get());
+  CHECK(options_.evaluator != nullptr);
+  CHECK(options_.jacobian != nullptr);
+  CHECK(options_.trust_region_strategy != nullptr);
+  evaluator_ = options_.evaluator.get();
+  jacobian_ = options_.jacobian.get();
+  strategy_ = options_.trust_region_strategy.get();
 
   is_not_silent_ = !options.is_silent;
   inner_iterations_are_enabled_ =
-      options.inner_iteration_minimizer.get() != NULL;
+      options.inner_iteration_minimizer.get() != nullptr;
   inner_iterations_were_useful_ = false;
 
   num_parameters_ = evaluator_->NumParameters();
@@ -342,13 +356,13 @@ bool TrustRegionMinimizer::FinalizeIterationAndCheckIfMinimizerCanContinue() {
 // Compute the trust region step using the TrustRegionStrategy chosen
 // by the user.
 //
-// If the strategy returns with LINEAR_SOLVER_FATAL_ERROR, which
+// If the strategy returns with LinearSolverTerminationType::FATAL_ERROR, which
 // indicates an unrecoverable error, return false. This is the only
 // condition that returns false.
 //
-// If the strategy returns with LINEAR_SOLVER_FAILURE, which indicates
-// a numerical failure that could be recovered from by retrying
-// (e.g. by increasing the strength of the regularization), we set
+// If the strategy returns with LinearSolverTerminationType::FAILURE, which
+// indicates a numerical failure that could be recovered from by retrying (e.g.
+// by increasing the strength of the regularization), we set
 // iteration_summary_.step_is_valid to false and return true.
 //
 // In all other cases, we compute the decrease in the trust region
@@ -380,7 +394,8 @@ bool TrustRegionMinimizer::ComputeTrustRegionStep() {
                              residuals_.data(),
                              trust_region_step_.data());
 
-  if (strategy_summary.termination_type == LINEAR_SOLVER_FATAL_ERROR) {
+  if (strategy_summary.termination_type ==
+      LinearSolverTerminationType::FATAL_ERROR) {
     solver_summary_->message =
         "Linear solver failed due to unrecoverable "
         "non-numeric causes. Please see the error log for clues. ";
@@ -392,7 +407,8 @@ bool TrustRegionMinimizer::ComputeTrustRegionStep() {
       WallTimeInSeconds() - strategy_start_time;
   iteration_summary_.linear_solver_iterations = strategy_summary.num_iterations;
 
-  if (strategy_summary.termination_type == LINEAR_SOLVER_FAILURE) {
+  if (strategy_summary.termination_type ==
+      LinearSolverTerminationType::FAILURE) {
     return true;
   }
 
@@ -421,10 +437,12 @@ bool TrustRegionMinimizer::ComputeTrustRegionStep() {
     num_consecutive_invalid_steps_ = 0;
   }
 
-  VLOG_IF(1, is_not_silent_ && !iteration_summary_.step_is_valid)
-      << "Invalid step: current_cost: " << x_cost_
-      << " absolute model cost change: " << model_cost_change_
-      << " relative model cost change: " << (model_cost_change_ / x_cost_);
+  if (is_not_silent_ && !iteration_summary_.step_is_valid) {
+    VLOG(1) << "Invalid step: current_cost: " << x_cost_
+            << " absolute model cost change: " << model_cost_change_
+            << " relative model cost change: "
+            << (model_cost_change_ / x_cost_);
+  }
   return true;
 }
 
@@ -487,17 +505,22 @@ void TrustRegionMinimizer::DoInnerIterationsIfNeeded() {
   options_.inner_iteration_minimizer->Minimize(
       options_, inner_iteration_x_.data(), &inner_iteration_summary);
   double inner_iteration_cost;
-  if (!evaluator_->Evaluate(
-          inner_iteration_x_.data(), &inner_iteration_cost, NULL, NULL, NULL)) {
-    VLOG_IF(2, is_not_silent_) << "Inner iteration failed.";
+  if (!evaluator_->Evaluate(inner_iteration_x_.data(),
+                            &inner_iteration_cost,
+                            nullptr,
+                            nullptr,
+                            nullptr)) {
+    if (is_not_silent_) {
+      VLOG(2) << "Inner iteration failed.";
+    }
     return;
   }
 
-  VLOG_IF(2, is_not_silent_)
-      << "Inner iteration succeeded; Current cost: " << x_cost_
-      << " Trust region step cost: " << candidate_cost_
-      << " Inner iteration cost: " << inner_iteration_cost;
-
+  if (is_not_silent_) {
+    VLOG(2) << "Inner iteration succeeded; Current cost: " << x_cost_
+            << " Trust region step cost: " << candidate_cost_
+            << " Inner iteration cost: " << inner_iteration_cost;
+  }
   candidate_x_ = inner_iteration_x_;
 
   // Normally, the quality of a trust region step is measured by
@@ -532,9 +555,10 @@ void TrustRegionMinimizer::DoInnerIterationsIfNeeded() {
   // drops below tolerance.
   inner_iterations_are_enabled_ =
       (inner_iteration_relative_progress > options_.inner_iteration_tolerance);
-  VLOG_IF(2, is_not_silent_ && !inner_iterations_are_enabled_)
-      << "Disabling inner iterations. Progress : "
-      << inner_iteration_relative_progress;
+  if (is_not_silent_ && !inner_iterations_are_enabled_) {
+    VLOG(2) << "Disabling inner iterations. Progress : "
+            << inner_iteration_relative_progress;
+  }
   candidate_cost_ = inner_iteration_cost;
 
   solver_summary_->inner_iteration_time_in_seconds +=
@@ -574,8 +598,8 @@ void TrustRegionMinimizer::DoLineSearch(const Vector& x,
   line_search_options.function = &line_search_function;
 
   std::string message;
-  std::unique_ptr<LineSearch> line_search(CHECK_NOTNULL(
-      LineSearch::Create(ceres::ARMIJO, line_search_options, &message)));
+  std::unique_ptr<LineSearch> line_search(
+      LineSearch::Create(ceres::ARMIJO, line_search_options, &message));
   LineSearch::Summary line_search_summary;
   line_search_function.Init(x, *delta);
   line_search->Search(1.0, cost, gradient.dot(*delta), &line_search_summary);
@@ -606,12 +630,15 @@ bool TrustRegionMinimizer::MaxSolverTimeReached() {
     return false;
   }
 
-  solver_summary_->message = StringPrintf("Maximum solver time reached. "
-                                          "Total solver time: %e >= %e.",
-                                          total_solver_time,
-                                          options_.max_solver_time_in_seconds);
+  solver_summary_->message = StringPrintf(
+      "Maximum solver time reached. "
+      "Total solver time: %e >= %e.",
+      total_solver_time,
+      options_.max_solver_time_in_seconds);
   solver_summary_->termination_type = NO_CONVERGENCE;
-  VLOG_IF(1, is_not_silent_) << "Terminating: " << solver_summary_->message;
+  if (is_not_silent_) {
+    VLOG(1) << "Terminating: " << solver_summary_->message;
+  }
   return true;
 }
 
@@ -623,13 +650,15 @@ bool TrustRegionMinimizer::MaxSolverIterationsReached() {
     return false;
   }
 
-  solver_summary_->message =
-      StringPrintf("Maximum number of iterations reached. "
-                   "Number of iterations: %d.",
-                   iteration_summary_.iteration);
+  solver_summary_->message = StringPrintf(
+      "Maximum number of iterations reached. "
+      "Number of iterations: %d.",
+      iteration_summary_.iteration);
 
   solver_summary_->termination_type = NO_CONVERGENCE;
-  VLOG_IF(1, is_not_silent_) << "Terminating: " << solver_summary_->message;
+  if (is_not_silent_) {
+    VLOG(1) << "Terminating: " << solver_summary_->message;
+  }
   return true;
 }
 
@@ -647,7 +676,9 @@ bool TrustRegionMinimizer::GradientToleranceReached() {
       iteration_summary_.gradient_max_norm,
       options_.gradient_tolerance);
   solver_summary_->termination_type = CONVERGENCE;
-  VLOG_IF(1, is_not_silent_) << "Terminating: " << solver_summary_->message;
+  if (is_not_silent_) {
+    VLOG(1) << "Terminating: " << solver_summary_->message;
+  }
   return true;
 }
 
@@ -658,13 +689,15 @@ bool TrustRegionMinimizer::MinTrustRegionRadiusReached() {
     return false;
   }
 
-  solver_summary_->message =
-      StringPrintf("Minimum trust region radius reached. "
-                   "Trust region radius: %e <= %e",
-                   iteration_summary_.trust_region_radius,
-                   options_.min_trust_region_radius);
+  solver_summary_->message = StringPrintf(
+      "Minimum trust region radius reached. "
+      "Trust region radius: %e <= %e",
+      iteration_summary_.trust_region_radius,
+      options_.min_trust_region_radius);
   solver_summary_->termination_type = CONVERGENCE;
-  VLOG_IF(1, is_not_silent_) << "Terminating: " << solver_summary_->message;
+  if (is_not_silent_) {
+    VLOG(1) << "Terminating: " << solver_summary_->message;
+  }
   return true;
 }
 
@@ -685,7 +718,9 @@ bool TrustRegionMinimizer::ParameterToleranceReached() {
       (iteration_summary_.step_norm / (x_norm_ + options_.parameter_tolerance)),
       options_.parameter_tolerance);
   solver_summary_->termination_type = CONVERGENCE;
-  VLOG_IF(1, is_not_silent_) << "Terminating: " << solver_summary_->message;
+  if (is_not_silent_) {
+    VLOG(1) << "Terminating: " << solver_summary_->message;
+  }
   return true;
 }
 
@@ -705,35 +740,37 @@ bool TrustRegionMinimizer::FunctionToleranceReached() {
       fabs(iteration_summary_.cost_change) / x_cost_,
       options_.function_tolerance);
   solver_summary_->termination_type = CONVERGENCE;
-  VLOG_IF(1, is_not_silent_) << "Terminating: " << solver_summary_->message;
+  if (is_not_silent_) {
+    VLOG(1) << "Terminating: " << solver_summary_->message;
+  }
   return true;
 }
 
 // Compute candidate_x_ = Plus(x_, delta_)
 // Evaluate the cost of candidate_x_ as candidate_cost_.
 //
-// Failure to compute the step or the cost mean that candidate_cost_
-// is set to std::numeric_limits<double>::max(). Unlike
-// EvaluateGradientAndJacobian, failure in this function is not fatal
-// as we are only computing and evaluating a candidate point, and if
-// for some reason we are unable to evaluate it, we consider it to be
-// a point with very high cost. This allows the user to deal with edge
-// cases/constraints as part of the LocalParameterization and
-// CostFunction objects.
+// Failure to compute the step or the cost mean that candidate_cost_ is set to
+// std::numeric_limits<double>::max(). Unlike EvaluateGradientAndJacobian,
+// failure in this function is not fatal as we are only computing and evaluating
+// a candidate point, and if for some reason we are unable to evaluate it, we
+// consider it to be a point with very high cost. This allows the user to deal
+// with edge cases/constraints as part of the Manifold and CostFunction objects.
 void TrustRegionMinimizer::ComputeCandidatePointAndEvaluateCost() {
   if (!evaluator_->Plus(x_.data(), delta_.data(), candidate_x_.data())) {
-    LOG_IF(WARNING, is_not_silent_)
-        << "x_plus_delta = Plus(x, delta) failed. "
-        << "Treating it as a step with infinite cost";
+    if (is_not_silent_) {
+      LOG(WARNING) << "x_plus_delta = Plus(x, delta) failed. "
+                   << "Treating it as a step with infinite cost";
+    }
     candidate_cost_ = std::numeric_limits<double>::max();
     return;
   }
 
   if (!evaluator_->Evaluate(
-          candidate_x_.data(), &candidate_cost_, NULL, NULL, NULL)) {
-    LOG_IF(WARNING, is_not_silent_)
-        << "Step failed to evaluate. "
-        << "Treating it as a step with infinite cost";
+          candidate_x_.data(), &candidate_cost_, nullptr, nullptr, nullptr)) {
+    if (is_not_silent_) {
+      LOG(WARNING) << "Step failed to evaluate. "
+                   << "Treating it as a step with infinite cost";
+    }
     candidate_cost_ = std::numeric_limits<double>::max();
   }
 }
@@ -751,7 +788,7 @@ bool TrustRegionMinimizer::IsStepSuccessful() {
   // small.
   //
   // This can cause the trust region loop to reject this step. To
-  // get around this, we expicitly check if the inner iterations
+  // get around this, we explicitly check if the inner iterations
   // led to a net decrease in the objective function value. If
   // they did, we accept the step even if the trust region ratio
   // is small.
@@ -785,12 +822,4 @@ bool TrustRegionMinimizer::HandleSuccessfulStep() {
   return true;
 }
 
-// Declare the step unsuccessful and inform the trust region strategy.
-void TrustRegionMinimizer::HandleUnsuccessfulStep() {
-  iteration_summary_.step_is_successful = false;
-  strategy_->StepRejected(iteration_summary_.relative_decrease);
-  iteration_summary_.cost = candidate_cost_ + solver_summary_->fixed_cost;
-}
-
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

@@ -28,18 +28,17 @@
 //
 // Author: strandmark@google.com (Petter Strandmark)
 //
-// Class for loading the data required for descibing a Fields of Experts (FoE)
+// Class for loading the data required for describing a Fields of Experts (FoE)
 // model.
 
 #include "fields_of_experts.h"
 
-#include <fstream>
 #include <cmath>
+#include <fstream>
 
 #include "pgm_image.h"
 
-namespace ceres {
-namespace examples {
+namespace ceres::examples {
 
 FieldsOfExpertsCost::FieldsOfExpertsCost(const std::vector<double>& filter)
     : filter_(filter) {
@@ -60,9 +59,9 @@ bool FieldsOfExpertsCost::Evaluate(double const* const* parameters,
     residuals[0] += filter_[i] * parameters[i][0];
   }
 
-  if (jacobians != NULL) {
+  if (jacobians != nullptr) {
     for (int i = 0; i < num_variables; ++i) {
-      if (jacobians[i] != NULL) {
+      if (jacobians[i] != nullptr) {
         jacobians[i][0] = filter_[i];
       }
     }
@@ -80,14 +79,12 @@ void FieldsOfExpertsLoss::Evaluate(double sq_norm, double rho[3]) const {
   const double sum = 1.0 + sq_norm * c;
   const double inv = 1.0 / sum;
   // 'sum' and 'inv' are always positive, assuming that 's' is.
-  rho[0] = alpha_ *  log(sum);
+  rho[0] = alpha_ * log(sum);
   rho[1] = alpha_ * c * inv;
-  rho[2] = - alpha_ * c * c * inv * inv;
+  rho[2] = -alpha_ * c * c * inv * inv;
 }
 
-FieldsOfExperts::FieldsOfExperts()
-    :  size_(0), num_filters_(0) {
-}
+FieldsOfExperts::FieldsOfExperts() : size_(0), num_filters_(0) {}
 
 bool FieldsOfExperts::LoadFromFile(const std::string& filename) {
   std::ifstream foe_file(filename.c_str());
@@ -147,6 +144,4 @@ ceres::LossFunction* FieldsOfExperts::NewLossFunction(int alpha_index) const {
   return new FieldsOfExpertsLoss(alpha_[alpha_index]);
 }
 
-
-}  // namespace examples
-}  // namespace ceres
+}  // namespace ceres::examples

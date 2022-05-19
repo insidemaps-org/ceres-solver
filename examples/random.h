@@ -31,16 +31,15 @@
 #ifndef CERES_EXAMPLES_RANDOM_H_
 #define CERES_EXAMPLES_RANDOM_H_
 
-#include <math.h>
-#include <stdlib.h>
+#include <cmath>
+#include <cstdlib>
 
-namespace ceres {
-namespace examples {
+namespace ceres::examples {
 
 // Return a random number sampled from a uniform distribution in the range
 // [0,1].
 inline double RandDouble() {
-  double r = static_cast<double>(rand());
+  auto r = static_cast<double>(rand());
   return r / RAND_MAX;
 }
 
@@ -52,13 +51,12 @@ inline double RandNormal() {
     x1 = 2.0 * RandDouble() - 1.0;
     x2 = 2.0 * RandDouble() - 1.0;
     w = x1 * x1 + x2 * x2;
-  } while ( w >= 1.0 || w == 0.0 );
+  } while (w >= 1.0 || w == 0.0);
 
   w = sqrt((-2.0 * log(w)) / w);
   return x1 * w;
 }
 
-}  // namespace examples
-}  // namespace ceres
+}  // namespace ceres::examples
 
 #endif  // CERES_EXAMPLES_RANDOM_H_

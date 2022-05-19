@@ -36,6 +36,7 @@
 
 #include <cstddef>
 #include <memory>
+
 #include "Eigen/Dense"
 #include "ceres/block_random_access_dense_matrix.h"
 #include "ceres/block_sparse_matrix.h"
@@ -58,15 +59,15 @@ using testing::AssertionResult;
 const double kEpsilon = 1e-14;
 
 class IterativeSchurComplementSolverTest : public ::testing::Test {
- protected :
+ protected:
   void SetUpProblem(int problem_id) {
-    std::unique_ptr<LinearLeastSquaresProblem> problem(
-        CreateLinearLeastSquaresProblemFromId(problem_id));
+    std::unique_ptr<LinearLeastSquaresProblem> problem =
+        CreateLinearLeastSquaresProblemFromId(problem_id);
 
-    CHECK_NOTNULL(problem.get());
+    CHECK(problem != nullptr);
     A_.reset(down_cast<BlockSparseMatrix*>(problem->A.release()));
-    b_.reset(problem->b.release());
-    D_.reset(problem->D.release());
+    b_ = std::move(problem->b);
+    D_ = std::move(problem->D);
 
     num_cols_ = A_->num_cols();
     num_rows_ = A_->num_rows();
@@ -74,9 +75,8 @@ class IterativeSchurComplementSolverTest : public ::testing::Test {
   }
 
   AssertionResult TestSolver(double* D) {
-    TripletSparseMatrix triplet_A(A_->num_rows(),
-                                  A_->num_cols(),
-                                  A_->num_nonzeros());
+    TripletSparseMatrix triplet_A(
+        A_->num_rows(), A_->num_cols(), A_->num_nonzeros());
     A_->ToTripletSparseMatrix(&triplet_A);
 
     DenseSparseMatrix dense_A(triplet_A);
@@ -99,15 +99,15 @@ class IterativeSchurComplementSolverTest : public ::testing::Test {
     IterativeSchurComplementSolver isc(options);
 
     Vector isc_sol(num_cols_);
-    per_solve_options.r_tolerance  = 1e-12;
+    per_solve_options.r_tolerance = 1e-12;
     isc.Solve(A_.get(), b_.get(), per_solve_options, isc_sol.data());
     double diff = (isc_sol - reference_solution).norm();
     if (diff < kEpsilon) {
       return testing::AssertionSuccess();
     } else {
       return testing::AssertionFailure()
-          << "The reference solution differs from the ITERATIVE_SCHUR"
-          << " solution by " << diff << " which is more than " << kEpsilon;
+             << "The reference solution differs from the ITERATIVE_SCHUR"
+             << " solution by " << diff << " which is more than " << kEpsilon;
     }
   }
 
@@ -121,13 +121,13 @@ class IterativeSchurComplementSolverTest : public ::testing::Test {
 
 TEST_F(IterativeSchurComplementSolverTest, NormalProblem) {
   SetUpProblem(2);
-  EXPECT_TRUE(TestSolver(NULL));
+  EXPECT_TRUE(TestSolver(nullptr));
   EXPECT_TRUE(TestSolver(D_.get()));
 }
 
 TEST_F(IterativeSchurComplementSolverTest, ProblemWithNoFBlocks) {
   SetUpProblem(3);
-  EXPECT_TRUE(TestSolver(NULL));
+  EXPECT_TRUE(TestSolver(nullptr));
   EXPECT_TRUE(TestSolver(D_.get()));
 }
 

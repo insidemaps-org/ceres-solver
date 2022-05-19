@@ -34,12 +34,13 @@
 #define CERES_INTERNAL_SPARSE_MATRIX_H_
 
 #include <cstdio>
-#include "ceres/linear_operator.h"
+
 #include "ceres/internal/eigen.h"
+#include "ceres/internal/export.h"
+#include "ceres/linear_operator.h"
 #include "ceres/types.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 // This class defines the interface for storing and manipulating
 // sparse matrices. The key property that differentiates different
@@ -62,14 +63,14 @@ namespace internal {
 // matrix type dependent and we are at this stage unable to come up
 // with an efficient high level interface that spans multiple sparse
 // matrix types.
-class SparseMatrix : public LinearOperator {
+class CERES_NO_EXPORT SparseMatrix : public LinearOperator {
  public:
-  virtual ~SparseMatrix();
+  ~SparseMatrix() override;
 
   // y += Ax;
-  virtual void RightMultiply(const double* x, double* y) const = 0;
+  void RightMultiply(const double* x, double* y) const override = 0;
   // y += A'x;
-  virtual void LeftMultiply(const double* x, double* y) const = 0;
+  void LeftMultiply(const double* x, double* y) const override = 0;
 
   // In MATLAB notation sum(A.*A, 1)
   virtual void SquaredColumnNorm(double* x) const = 0;
@@ -90,18 +91,17 @@ class SparseMatrix : public LinearOperator {
   virtual void ToTextFile(FILE* file) const = 0;
 
   // Accessors for the values array that stores the entries of the
-  // sparse matrix. The exact interpreptation of the values of this
+  // sparse matrix. The exact interpretation of the values of this
   // array depends on the particular kind of SparseMatrix being
   // accessed.
   virtual double* mutable_values() = 0;
   virtual const double* values() const = 0;
 
-  virtual int num_rows() const = 0;
-  virtual int num_cols() const = 0;
+  int num_rows() const override = 0;
+  int num_cols() const override = 0;
   virtual int num_nonzeros() const = 0;
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_SPARSE_MATRIX_H_

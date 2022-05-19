@@ -30,15 +30,13 @@
 
 #include "ceres/block_structure.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 bool CellLessThan(const Cell& lhs, const Cell& rhs) {
   if (lhs.block_id == rhs.block_id) {
-    return (lhs.position  < rhs.position);
+    return (lhs.position < rhs.position);
   }
   return (lhs.block_id < rhs.block_id);
 }
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal

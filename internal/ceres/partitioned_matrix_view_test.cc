@@ -32,6 +32,7 @@
 
 #include <memory>
 #include <vector>
+
 #include "ceres/block_structure.h"
 #include "ceres/casts.h"
 #include "ceres/internal/eigen.h"
@@ -47,22 +48,21 @@ namespace internal {
 const double kEpsilon = 1e-14;
 
 class PartitionedMatrixViewTest : public ::testing::Test {
- protected :
-  virtual void SetUp() {
+ protected:
+  void SetUp() final {
     srand(5);
-    std::unique_ptr<LinearLeastSquaresProblem> problem(
-        CreateLinearLeastSquaresProblemFromId(2));
-    CHECK_NOTNULL(problem.get());
-    A_.reset(problem->A.release());
+    std::unique_ptr<LinearLeastSquaresProblem> problem =
+        CreateLinearLeastSquaresProblemFromId(2);
+    CHECK(problem != nullptr);
+    A_ = std::move(problem->A);
 
     num_cols_ = A_->num_cols();
     num_rows_ = A_->num_rows();
     num_eliminate_blocks_ = problem->num_eliminate_blocks;
     LinearSolver::Options options;
     options.elimination_groups.push_back(num_eliminate_blocks_);
-    pmv_.reset(PartitionedMatrixViewBase::Create(
-                   options,
-                   *down_cast<BlockSparseMatrix*>(A_.get())));
+    pmv_ = PartitionedMatrixViewBase::Create(
+        options, *down_cast<BlockSparseMatrix*>(A_.get()));
   }
 
   int num_rows_;
@@ -143,9 +143,9 @@ TEST_F(PartitionedMatrixViewTest, LeftMultiply) {
 }
 
 TEST_F(PartitionedMatrixViewTest, BlockDiagonalEtE) {
-  std::unique_ptr<BlockSparseMatrix>
-      block_diagonal_ee(pmv_->CreateBlockDiagonalEtE());
-  const CompressedRowBlockStructure* bs  = block_diagonal_ee->block_structure();
+  std::unique_ptr<BlockSparseMatrix> block_diagonal_ee(
+      pmv_->CreateBlockDiagonalEtE());
+  const CompressedRowBlockStructure* bs = block_diagonal_ee->block_structure();
 
   EXPECT_EQ(block_diagonal_ee->num_rows(), 2);
   EXPECT_EQ(block_diagonal_ee->num_cols(), 2);
@@ -157,9 +157,9 @@ TEST_F(PartitionedMatrixViewTest, BlockDiagonalEtE) {
 }
 
 TEST_F(PartitionedMatrixViewTest, BlockDiagonalFtF) {
-  std::unique_ptr<BlockSparseMatrix>
-      block_diagonal_ff(pmv_->CreateBlockDiagonalFtF());
-  const CompressedRowBlockStructure* bs  = block_diagonal_ff->block_structure();
+  std::unique_ptr<BlockSparseMatrix> block_diagonal_ff(
+      pmv_->CreateBlockDiagonalFtF());
+  const CompressedRowBlockStructure* bs = block_diagonal_ff->block_structure();
 
   EXPECT_EQ(block_diagonal_ff->num_rows(), 3);
   EXPECT_EQ(block_diagonal_ff->num_cols(), 3);

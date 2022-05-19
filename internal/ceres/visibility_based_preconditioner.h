@@ -56,14 +56,12 @@
 #include <vector>
 
 #include "ceres/graph.h"
-#include "ceres/internal/macros.h"
 #include "ceres/linear_solver.h"
 #include "ceres/pair_hash.h"
 #include "ceres/preconditioner.h"
 #include "ceres/sparse_cholesky.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
 class BlockRandomAccessSparseMatrix;
 class BlockSparseMatrix;
@@ -123,9 +121,10 @@ class SchurEliminatorBase;
 //   options.elimination_groups.push_back(num_cameras);
 //   VisibilityBasedPreconditioner preconditioner(
 //      *A.block_structure(), options);
-//   preconditioner.Update(A, NULL);
+//   preconditioner.Update(A, nullptr);
 //   preconditioner.RightMultiply(x, y);
-class VisibilityBasedPreconditioner : public BlockSparseMatrixPreconditioner {
+class CERES_NO_EXPORT VisibilityBasedPreconditioner
+    : public BlockSparseMatrixPreconditioner {
  public:
   // Initialize the symbolic structure of the preconditioner. bs is
   // the block structure of the linear system to be solved. It is used
@@ -134,17 +133,20 @@ class VisibilityBasedPreconditioner : public BlockSparseMatrixPreconditioner {
   // It has the same structural requirement as other Schur complement
   // based solvers. Please see schur_eliminator.h for more details.
   VisibilityBasedPreconditioner(const CompressedRowBlockStructure& bs,
-                                const Preconditioner::Options& options);
-  virtual ~VisibilityBasedPreconditioner();
+                                Preconditioner::Options options);
+  VisibilityBasedPreconditioner(const VisibilityBasedPreconditioner&) = delete;
+  void operator=(const VisibilityBasedPreconditioner&) = delete;
+
+  ~VisibilityBasedPreconditioner() override;
 
   // Preconditioner interface
-  virtual void RightMultiply(const double* x, double* y) const;
-  virtual int num_rows() const;
+  void RightMultiply(const double* x, double* y) const final;
+  int num_rows() const final;
 
   friend class VisibilityBasedPreconditionerTest;
 
  private:
-  virtual bool UpdateImpl(const BlockSparseMatrix& A, const double* D);
+  bool UpdateImpl(const BlockSparseMatrix& A, const double* D) final;
   void ComputeClusterJacobiSparsity(const CompressedRowBlockStructure& bs);
   void ComputeClusterTridiagonalSparsity(const CompressedRowBlockStructure& bs);
   void InitStorage(const CompressedRowBlockStructure& bs);
@@ -158,10 +160,11 @@ class VisibilityBasedPreconditioner : public BlockSparseMatrixPreconditioner {
   void ComputeClusterVisibility(
       const std::vector<std::set<int>>& visibility,
       std::vector<std::set<int>>* cluster_visibility) const;
-  WeightedGraph<int>* CreateClusterGraph(
+  std::unique_ptr<WeightedGraph<int>> CreateClusterGraph(
       const std::vector<std::set<int>>& visibility) const;
-  void ForestToClusterPairs(const WeightedGraph<int>& forest,
-                            std::unordered_set<std::pair<int, int>, pair_hash>* cluster_pairs) const;
+  void ForestToClusterPairs(
+      const WeightedGraph<int>& forest,
+      std::unordered_set<std::pair<int, int>, pair_hash>* cluster_pairs) const;
   void ComputeBlockPairsInPreconditioner(const CompressedRowBlockStructure& bs);
   bool IsBlockPairInPreconditioner(int block1, int block2) const;
   bool IsBlockPairOffDiagonal(int block1, int block2) const;
@@ -191,10 +194,8 @@ class VisibilityBasedPreconditioner : public BlockSparseMatrixPreconditioner {
   // Preconditioner matrix.
   std::unique_ptr<BlockRandomAccessSparseMatrix> m_;
   std::unique_ptr<SparseCholesky> sparse_cholesky_;
-  CERES_DISALLOW_COPY_AND_ASSIGN(VisibilityBasedPreconditioner);
 };
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
 
 #endif  // CERES_INTERNAL_VISIBILITY_BASED_PRECONDITIONER_H_

@@ -30,11 +30,8 @@
 
 #include "ceres/linear_operator.h"
 
-namespace ceres {
-namespace internal {
+namespace ceres::internal {
 
-LinearOperator::~LinearOperator() {
-}
+LinearOperator::~LinearOperator() = default;
 
-}  // namespace internal
-}  // namespace ceres
+}  // namespace ceres::internal
