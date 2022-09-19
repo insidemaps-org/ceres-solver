@@ -105,6 +105,11 @@ project(Ceres C CXX)
 # append rather than set in case the user has passed their own
 # additional paths via -D.
 list(APPEND CMAKE_MODULE_PATH "${Ceres_SOURCE_DIR}/cmake")
+#list(APPEND CMAKE_MODULE_PATH "/usr/local/Cellar/eigen/3.3.9/share/cmake/Modules/")
+#list(APPEND CMAKE_MODULE_PATH "/Users/vladimirsubotic/im/CV/support/2021_04_15_ceres/eigen/cmake/")
+#list(APPEND CMAKE_MODULE_PATH "/usr/local/share/eigen3/cmake/")
+#include_directories("/usr/local/include/eigen3/")
+
 include(AddCompileFlagsIfSupported)
 include(UpdateCacheVariable)
 
