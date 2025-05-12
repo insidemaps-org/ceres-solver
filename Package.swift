@@ -2,7 +2,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "OpenCV",
+    name: "ceres",
     platforms: [
         .macOS(.v11), .iOS(.v12), .macCatalyst(.v16)
     ],
